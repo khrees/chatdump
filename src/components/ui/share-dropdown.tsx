@@ -11,13 +11,26 @@ interface ShareDropdownProps {
 type CopyStatus = 'idle' | 'success' | 'error'
 
 function wrapMarkdown(text: string): string {
-  return `Please continue this conversation. Here is the conversation history:
+  return `Taking this conversation history into context, answer the next questions \n\n${text}`
+}
 
----
-${text}
----
+function buildPromptUrl(providerId: string, prompt: string): string {
+  const encoded = encodeURIComponent(prompt)
 
-Continue from where we left off.`
+  switch (providerId) {
+    case 'chatgpt':
+      return `https://chatgpt.com/?prompt=${encoded}`
+    case 'claude':
+      return `https://claude.ai/new?q=${encoded}`
+    case 'copilot':
+      return `https://copilot.microsoft.com/?prompt=${encoded}`
+    case 'gemini':
+      return `https://gemini.google.com/?prompt=${encoded}`
+    case 'grok':
+      return `https://grok.com/?prompt=${encoded}`
+    default:
+      return '#'
+  }
 }
 
 export function ShareDropdown({
@@ -75,7 +88,9 @@ export function ShareDropdown({
   }
 
   function handleOpen(provider: ShareProvider) {
-    onOpenProvider(provider.url)
+    const promptText = markdown ? wrapMarkdown(markdown) : ''
+    const providerUrl = buildPromptUrl(provider.id, promptText)
+    onOpenProvider(providerUrl)
   }
 
   return (
@@ -84,7 +99,7 @@ export function ShareDropdown({
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(!isOpen)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-white max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
+        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-white max-[500px]:min-h-[2.8rem] max-[500px]:px-[0.75rem] max-[500px]:pl-[0.7rem] max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
@@ -146,13 +161,12 @@ export function ShareDropdown({
             type="button"
             onClick={handleCopy}
             disabled={copyStatus === 'success'}
-            className={`mb-3 w-full rounded-lg px-3 py-2.5 text-[0.82rem] font-semibold transition-colors ${
-              copyStatus === 'success'
+            className={`mb-3 w-full rounded-lg px-3 py-2.5 text-[0.82rem] font-semibold transition-colors ${copyStatus === 'success'
                 ? 'bg-green-100 text-green-700'
                 : copyStatus === 'error'
                   ? 'bg-red-50 text-red-600'
                   : 'bg-[linear-gradient(135deg,#292520,#171411)] text-[#f5eee5] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-            }`}
+              }`}
           >
             {copyStatus === 'success'
               ? 'Copied! Now paste in chat'
