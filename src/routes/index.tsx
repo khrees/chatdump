@@ -608,7 +608,7 @@ function Home() {
       {toasts.length > 0 ? (
         <div
           aria-live="polite"
-          className="pointer-events-none fixed top-5 right-5 z-30 grid w-[min(24rem,calc(100vw-2rem))] gap-3 max-[720px]:top-4 max-[720px]:right-4 max-[720px]:w-[calc(100vw-2rem)]"
+          className="pointer-events-none fixed top-5 right-5 z-30 grid w-[min(24rem,calc(100vw-2rem))] gap-3 max-[500px]:top-3 max-[500px]:right-3 max-[500px]:left-3 max-[500px]:w-auto max-[720px]:top-4 max-[720px]:right-4 max-[720px]:w-[calc(100vw-2rem)]"
         >
           {toasts.map((toast) => (
             <div
@@ -705,7 +705,7 @@ function Home() {
       )}
 
       <div className="mx-auto grid max-w-[1380px] gap-4 max-[720px]:gap-3">
-        <header className="flex items-center justify-between gap-4 px-1 pt-1 max-[720px]:px-0">
+        <header className="flex items-center justify-between gap-4 px-1 pt-1 max-[500px]:pt-0.5 max-[720px]:px-0">
           <button
             type="button"
             onClick={handleLogoClick}
@@ -735,19 +735,14 @@ function Home() {
         <div className="grid gap-4">
           {!hasResult ? (
             <section
-              className="panel-shell grid content-start gap-6 p-6 max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4"
+              className="panel-shell grid content-start gap-6 p-6 max-[500px]:gap-4 max-[500px]:rounded-[1.35rem] max-[500px]:p-3.5 max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4"
             >
               <div className="grid gap-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(49,67,58,0.12)] bg-[rgba(255,255,255,0.54)] px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.12em] text-ink-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] min-[721px]:hidden">
-                  <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brass" />
-                  Public share export
-                </div>
-
                 <div className="grid gap-3">
-                  <h1 className="text-[clamp(2.8rem,6.2vw,5.3rem)] font-bold leading-[0.95] tracking-[-0.07em] max-[720px]:text-[clamp(2.15rem,14vw,3.75rem)] max-[720px]:leading-[0.94] max-[720px]:tracking-[-0.08em]">
+                  <h1 className="text-[clamp(2.8rem,6.2vw,5.3rem)] font-bold leading-[0.95] tracking-[-0.07em] max-[500px]:text-[1.95rem] max-[500px]:leading-[0.96] max-[500px]:tracking-[-0.06em] max-[720px]:text-[clamp(2.15rem,14vw,3.75rem)] max-[720px]:leading-[0.94] max-[720px]:tracking-[-0.08em]">
                     Turn a public share link into Markdown.
                   </h1>
-                  <p className="max-w-[36rem] text-[1.02rem] leading-[1.72] text-ink-muted max-[720px]:max-w-none max-[720px]:text-[0.97rem]">
+                  <p className="max-w-[36rem] text-[1.02rem] leading-[1.72] text-ink-muted max-[500px]:text-[0.9rem] max-[500px]:leading-[1.6] max-[720px]:max-w-none max-[720px]:text-[0.97rem]">
                     Paste a supported share link to generate a clean transcript
                     you can review and copy.
                   </p>
@@ -755,7 +750,7 @@ function Home() {
               </div>
 
               <form
-                className="form-shell grid gap-4 p-4 max-[720px]:gap-3.5 max-[720px]:rounded-[1.2rem] max-[720px]:p-3.5"
+                className="form-shell grid gap-4 p-4 max-[500px]:gap-3 max-[500px]:rounded-[1.1rem] max-[500px]:p-3 max-[720px]:gap-3.5 max-[720px]:rounded-[1.2rem] max-[720px]:p-3.5"
                 onSubmit={handleSubmit}
               >
                 <label className="grid gap-[0.6rem]">
@@ -783,7 +778,7 @@ function Home() {
                       </span>
                     </span>
                   </span>
-                  <div className="grid min-h-[3.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-[0.8rem] rounded-[1.1rem] border border-line-strong bg-paper-inset pl-[0.95rem] pr-[0.4rem] transition-[border-color,box-shadow,transform] duration-[180ms] ease-out focus-within:-translate-y-px focus-within:border-[rgba(155,106,51,0.48)] focus-within:shadow-[0_0_0_4px_var(--focus)] max-[720px]:min-h-[3.45rem] max-[720px]:gap-[0.65rem] max-[720px]:rounded-[1rem] max-[720px]:pl-[0.85rem] max-[720px]:pr-[0.3rem]">
+                  <div className="grid min-h-[3.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-[0.8rem] rounded-[1.1rem] border border-line-strong bg-paper-inset pl-[0.95rem] pr-[0.4rem] transition-[border-color,box-shadow,transform] duration-[180ms] ease-out focus-within:-translate-y-px focus-within:border-[rgba(155,106,51,0.48)] focus-within:shadow-[0_0_0_4px_var(--focus)] max-[500px]:min-h-[3.2rem] max-[500px]:gap-[0.6rem] max-[500px]:rounded-[0.95rem] max-[500px]:pl-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:min-h-[3.45rem] max-[720px]:gap-[0.65rem] max-[720px]:rounded-[1rem] max-[720px]:pl-[0.85rem] max-[720px]:pr-[0.3rem]">
                     <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
                       <path
                         d="M14 5h5v5M10 14 19 5M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"
@@ -792,7 +787,7 @@ function Home() {
                     </svg>
                     <input
                       autoComplete="off"
-                      className="min-h-full min-w-0 bg-transparent py-4 pr-[0.75rem] font-mono text-[0.96rem] text-ink outline-none placeholder:text-ink-soft max-[720px]:py-[0.95rem] max-[720px]:pr-[0.55rem] max-[720px]:text-[0.88rem] max-[720px]:placeholder:text-[0.82rem]"
+                      className="min-h-full min-w-0 bg-transparent py-4 pr-[0.75rem] font-mono text-[0.96rem] text-ink outline-none placeholder:text-ink-soft max-[500px]:py-[0.88rem] max-[500px]:pr-[0.5rem] max-[500px]:text-[0.84rem] max-[500px]:placeholder:text-[0.78rem] max-[720px]:py-[0.95rem] max-[720px]:pr-[0.55rem] max-[720px]:text-[0.88rem] max-[720px]:placeholder:text-[0.82rem]"
                       inputMode="url"
                       name="url"
                       placeholder="https://.../share/..."
@@ -867,18 +862,18 @@ function Home() {
 
           {hasResult ? (
             <section
-              className="panel-shell grid h-[min(32rem,calc(100dvh-3rem))] min-h-[28rem] grid-rows-[auto_1fr] gap-6 p-6 max-[1099px]:h-[min(31rem,calc(100dvh-1.75rem))] max-[1099px]:min-h-[24rem] max-[720px]:h-[calc(100dvh-1.5rem)] max-[720px]:min-h-[29.5rem] max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4 min-[1100px]:h-[calc(100dvh-8.5rem)]"
+              className="panel-shell grid h-[min(32rem,calc(100dvh-3rem))] min-h-[28rem] grid-rows-[auto_1fr] gap-6 p-6 max-[1099px]:h-[min(31rem,calc(100dvh-1.75rem))] max-[1099px]:min-h-[24rem] max-[500px]:h-[calc(100svh-8rem)] max-[500px]:min-h-[26rem] max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4 max-[720px]:max-h-[calc(100svh-5rem)] min-[1100px]:h-[calc(100dvh-8.5rem)]"
               ref={outputSectionRef}
             >
-              <div className="flex items-start justify-between gap-4 max-[720px]:flex-col max-[720px]:items-stretch">
+              <div className="flex items-start justify-between gap-4 max-[500px]:gap-3 max-[720px]:flex-col max-[720px]:items-stretch">
                 <div className="grid gap-[0.55rem]">
                   <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
                     Output
                   </p>
-                  <h2 className="text-[clamp(1.55rem,3vw,2.2rem)] font-semibold leading-[1.02] tracking-[-0.05em] max-[720px]:text-[clamp(1.4rem,8vw,1.9rem)]">
+                  <h2 className="text-[clamp(1.55rem,3vw,2.2rem)] font-semibold leading-[1.02] tracking-[-0.05em] max-[500px]:text-[1.35rem] max-[500px]:tracking-[-0.04em] max-[720px]:text-[clamp(1.4rem,8vw,1.9rem)]">
                     Markdown export ready
                   </h2>
-                  <p className="text-[1rem] leading-[1.65] text-ink-muted max-[720px]:text-[0.96rem]">
+                  <p className="text-[1rem] leading-[1.65] text-ink-muted max-[500px]:text-[0.9rem] max-[500px]:leading-[1.55] max-[720px]:text-[0.96rem]">
                     Review the generated transcript, then copy the Markdown
                     directly into your workflow.
                   </p>
@@ -890,17 +885,17 @@ function Home() {
                     aria-label="Export metadata"
                   >
                     {lineCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {lineCount} lines
                       </span>
                     ) : null}
                     {characterCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {characterCount} chars
                       </span>
                     ) : null}
                     {warningCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-[rgba(156,118,45,0.18)] bg-[rgba(156,118,45,0.12)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-warning-ink">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-[rgba(156,118,45,0.18)] bg-[rgba(156,118,45,0.12)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-warning-ink max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {warningCount} warning{warningCount > 1 ? 's' : ''}
                       </span>
                     ) : null}
@@ -931,7 +926,7 @@ function Home() {
                     </button>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-end gap-2 max-[720px]:justify-between">
+                  <div className="flex flex-wrap items-center justify-end gap-2 max-[500px]:gap-1.5 max-[720px]:justify-between">
                     <div className="inline-flex rounded-full border border-line-strong bg-white/72 p-0.5 shadow-soft max-[720px]:order-2">
                       <button
                         aria-label="Markdown"
@@ -1010,7 +1005,7 @@ function Home() {
 
                       <Button
                         aria-label={copyLabel}
-                        className="max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
+                        className="max-[500px]:min-h-[2.8rem] max-[500px]:w-11 max-[500px]:justify-center max-[500px]:gap-0 max-[500px]:px-0 max-[500px]:pl-0 max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
                         onClick={handleCopy}
                       >
                         {copyState === 'copied' ? (
@@ -1033,7 +1028,7 @@ function Home() {
 
                       <Button
                         aria-label="Download .md"
-                        className="max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
+                        className="max-[500px]:min-h-[2.8rem] max-[500px]:w-11 max-[500px]:justify-center max-[500px]:gap-0 max-[500px]:px-0 max-[500px]:pl-0 max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
                         onClick={handleDownload}
                       >
                         <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">

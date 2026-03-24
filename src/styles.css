@@ -67,9 +67,15 @@ html {
 
 body {
   margin: 0;
-  min-height: 100dvh;
+  min-height: 100svh;
   overflow-x: hidden;
   position: relative;
+}
+
+@media (min-width: 500px) {
+  body {
+    min-height: 100dvh;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -79,9 +85,19 @@ body {
 }
 
 .app-frame {
+  min-height: 100svh;
   min-height: 100dvh;
   padding:
     max(1rem, env(safe-area-inset-top)) clamp(0.75rem, 3vw, 1.25rem) max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 500px) {
+  .app-frame {
+    padding-left: clamp(0.75rem, 3vw, 1.25rem);
+    padding-right: clamp(0.75rem, 3vw, 1.25rem);
+  }
 }
 
 body::before,
@@ -543,7 +559,27 @@ body::after {
     min-width: 7rem;
     padding: 0.58rem 0.62rem;
   }
+}
 
+@media (max-width: 500px) {
+  .output-surface {
+    padding: 0.85rem;
+  }
+
+  .markdown-preview h1 {
+    font-size: 1.4rem;
+  }
+
+  .markdown-preview pre {
+    font-size: 0.76rem;
+    padding: 0.75rem;
+    border-radius: 0.85rem;
+  }
+
+  .markdown-preview blockquote {
+    padding: 0.7rem 0.8rem;
+    border-radius: 0 0.85rem 0.85rem 0;
+  }
 }
 
 @media (min-width: 721px) {
