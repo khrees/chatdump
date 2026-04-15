@@ -442,6 +442,8 @@ async function snapshotPage(page: any): Promise<BrowserExtractResult> {
   })
 }
 
+let stealthPluginRegistered = false
+
 async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime | null> {
   const chromiumPackagePath = resolveModulePath('@sparticuz/chromium')
   const playwrightCorePackagePath = resolveModulePath('playwright-core')
@@ -458,18 +460,6 @@ async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime 
     return null
   }
 
-  let playwrightCore: PlaywrightModule | null = null
-
-  try {
-    playwrightCore = require('playwright-core')
-  } catch (cause) {
-    logWarn('playwright-core require failed', {
-      error: getErrorMessage(cause),
-      playwrightCorePackagePath,
-    })
-    return null
-  }
-
   if (
     !chromiumPackage ||
     !Array.isArray(chromiumPackage.args) ||
@@ -479,6 +469,40 @@ async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime 
       chromiumPackagePath,
     })
     return null
+  }
+
+  // Try playwright-extra with stealth plugin to bypass bot detection.
+  // Falls back to plain playwright-core if unavailable.
+  let playwrightCore: PlaywrightModule | null = null
+
+  try {
+    const playwrightExtra = require('playwright-extra')
+
+    if (!stealthPluginRegistered) {
+      try {
+        const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+        playwrightExtra.chromium.use(StealthPlugin())
+        stealthPluginRegistered = true
+        logInfo('playwright-extra stealth plugin registered', {})
+      } catch (cause) {
+        logWarn('puppeteer-extra-plugin-stealth unavailable; stealth disabled', {
+          error: getErrorMessage(cause),
+        })
+      }
+    }
+
+    playwrightCore = playwrightExtra
+  } catch {
+    try {
+      playwrightCore = require('playwright-core')
+      logInfo('playwright-extra unavailable; using plain playwright-core', {})
+    } catch (cause) {
+      logWarn('playwright-core require failed', {
+        error: getErrorMessage(cause),
+        playwrightCorePackagePath,
+      })
+      return null
+    }
   }
 
   if (!playwrightCore) {
