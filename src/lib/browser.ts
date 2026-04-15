@@ -76,9 +76,18 @@ export async function extractConversationInBrowser(
     url,
   })
 
-  const browser = await playwright.chromium.launch({
-    headless: true,
-  })
+  let browser: PlaywrightBrowser
+
+  try {
+    browser = await playwright.chromium.launch({ headless: true })
+  } catch (cause) {
+    logWarn('Playwright browser launch failed; browser fallback unavailable', {
+      error: getErrorMessage(cause),
+      executablePath: getSafeExecutablePath(executablePath),
+      url,
+    })
+    return null
+  }
 
   logInfo('Playwright browser launched', { url })
 
@@ -112,7 +121,7 @@ async function extractConversationInServerlessBrowser(
   })
 
   const browser = await runtime.playwrightCore.chromium.launch({
-    args: runtime.chromiumPackage.args,
+    args: [...runtime.chromiumPackage.args, '--disable-blink-features=AutomationControlled'],
     executablePath,
     headless: true,
   })
@@ -132,8 +141,17 @@ async function extractConversationFromLaunchedBrowser(
 ): Promise<BrowserExtractResult> {
   const provider = detectShareProvider(url)
   const page = await browser.newPage({
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
     userAgent: BROWSER_USER_AGENT,
+    viewport: { height: 1080, width: 1920 },
   })
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+  })
+
   const warnings: string[] = []
   const providerPayloadsPromise = waitForProviderPayloads(page, provider, url)
 
