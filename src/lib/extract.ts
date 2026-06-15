@@ -3,6 +3,11 @@ import type { AnyNode, Element } from 'domhandler'
 import { extractConversationInBrowser } from './browser'
 import { ChatdumpError } from './errors'
 import {
+  createClaudeSnapshotApiUrl,
+  extractClaudeConversationPayloads,
+} from './claude'
+import { handleClaudeSnapshotProxyRequest } from './claude-proxy'
+import {
   createCopilotShareConversationApiUrl,
   extractCopilotConversationPayloads,
 } from './copilot'
@@ -145,6 +150,14 @@ async function loadShareConversation(
     provider: ReturnType<typeof normalizeShareUrl>['provider']
   },
 ): Promise<{ conversation: NormalizedConversation; warnings: string[] }> {
+  if (options.provider === 'claude') {
+    return loadClaudeShareConversation(url, {
+      browserExtractor: options.browserExtractor,
+      enableBrowserFallback: options.enableBrowserFallback,
+      fetchImpl: options.fetchImpl,
+    })
+  }
+
   if (options.provider === 'grok') {
     return loadGrokShareConversation(url, {
       browserExtractor: options.browserExtractor,
@@ -181,6 +194,92 @@ async function loadShareConversation(
     })
 
     return resolveBrowserFallback(url.toString(), options.browserExtractor, cause)
+  }
+}
+
+async function loadClaudeShareConversation(
+  url: URL,
+  options: {
+    browserExtractor?: BrowserExtractor
+    enableBrowserFallback?: boolean
+    fetchImpl: FetchImpl
+  },
+): Promise<{ conversation: NormalizedConversation; warnings: string[] }> {
+  // Call the proxy handler directly (no HTTP self-call) to avoid VERCEL_URL
+  // auth issues. The handler fetches claude.ai/api/chat_snapshots/<id> with
+  // browser-like headers that bypass Cloudflare's bot check.
+  const apiUrl = createClaudeSnapshotApiUrl(url)
+  const shareId = apiUrl.pathname.split('/').pop()!
+
+  const proxyRequest = new Request(
+    `http://localhost/api/claude-snapshot?shareId=${shareId}`,
+  )
+  const response = await handleClaudeSnapshotProxyRequest(proxyRequest)
+
+  if (response.status === 503) {
+    // 503 = Cloudflare managed challenge — fall back to browser
+    const error = new ChatdumpError(
+      'FETCH_FAILED',
+      'Claude share links are currently blocked by Cloudflare bot protection.',
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot blocked by Cloudflare; trying browser fallback', {
+      browserUrl: url.toString(),
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  if (!response.ok) {
+    const error = new ChatdumpError(
+      'FETCH_FAILED',
+      `Claude snapshot proxy returned HTTP ${response.status}`,
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot proxy non-OK; trying browser fallback', {
+      browserUrl: url.toString(),
+      status: response.status,
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  const responseText = await response.text()
+  const conversation = selectBestConversationFromPayloads(
+    extractClaudeConversationPayloads(responseText),
+    url.toString(),
+    getDefaultConversationTitle(url.toString()),
+  )
+
+  if (!conversation) {
+    const error = new ChatdumpError(
+      'EXTRACT_FAILED',
+      'could not extract conversation data from Claude snapshot payload',
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot extraction failed; trying browser fallback', {
+      browserUrl: url.toString(),
+      error: error.message,
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  return {
+    conversation,
+    warnings: [],
   }
 }
 

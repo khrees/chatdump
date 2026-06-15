@@ -3,5 +3,6 @@ dist
 .output
 .vercel
 .env.local
+.env.vercel.local
 .DS_Store
 /docs

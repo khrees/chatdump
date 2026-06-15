@@ -17,6 +17,11 @@ export default defineConfig({
     tailwindcss(),
     nitro({
       traceDeps: ['playwright-core', '@sparticuz/chromium'],
+      vercel: {
+        functions: {
+          maxDuration: 60,
+        },
+      },
     }),
   ],
   environments: {
