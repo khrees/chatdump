@@ -113,6 +113,7 @@ function getProviderForHost(hostname: string): ShareProvider {
       return 'copilot'
     case 'g.co':
     case 'gemini.google.com':
+    case 'share.gemini.google':
       return 'gemini'
     case 'grok.com':
       return 'grok'
@@ -162,6 +163,14 @@ function readShareId(
     pathParts[1]
   ) {
     return pathParts[1]
+  }
+
+  if (
+    hostname === 'share.gemini.google' &&
+    pathParts.length === 1 &&
+    pathParts[0]
+  ) {
+    return pathParts[0]
   }
 
   if (

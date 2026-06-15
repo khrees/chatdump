@@ -62,7 +62,29 @@ export async function convertShareUrlToMarkdown(
   rawUrl: string,
   options: ConvertOptions = {},
 ): Promise<ConvertResult> {
-  const { provider, url } = normalizeShareUrl(rawUrl)
+  let urlToNormalize = rawUrl
+  try {
+    const parsedUrl = new URL(rawUrl)
+    if (parsedUrl.hostname.toLowerCase() === 'share.gemini.google') {
+      const fetchImpl = options.fetchImpl ?? fetch
+      try {
+        const response = await fetchImpl(rawUrl, {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: AbortSignal.timeout(10_000),
+        })
+        if (response.url) {
+          urlToNormalize = response.url
+        }
+      } catch (err) {
+        console.warn('[chatdump] Failed to resolve share.gemini.google redirect', err)
+      }
+    }
+  } catch {
+    // Ignore URL parse error; normalizeShareUrl will throw the appropriate error
+  }
+
+  const { provider, url } = normalizeShareUrl(urlToNormalize)
   const fetchImpl = options.fetchImpl ?? fetch
   const loader = async () => {
     const { conversation, warnings } = await loadShareConversation(url, {
@@ -214,7 +236,7 @@ async function loadClaudeShareConversation(
   const proxyRequest = new Request(
     `http://localhost/api/claude-snapshot?shareId=${shareId}`,
   )
-  const response = await handleClaudeSnapshotProxyRequest(proxyRequest)
+  const response = await handleClaudeSnapshotProxyRequest(proxyRequest, options.fetchImpl)
 
   if (response.status === 503) {
     // 503 = Cloudflare managed challenge — fall back to browser
@@ -2279,10 +2301,42 @@ function isMeaningfulBlock(block: ContentBlock): boolean {
   }
 }
 
+function cleanChatGptText(text: string): string {
+  return text.replace(/\ue200([a-z]+)\ue202([^\ue201]*?)\ue201/g, (match, type, content) => {
+    if (type === 'url') {
+      const parts = content.split('\ue202')
+      const linkText = parts[0] || ''
+      const linkUrl = parts[1] || ''
+      if (linkUrl.startsWith('http://') || linkUrl.startsWith('https://')) {
+        return `[${linkText}](${linkUrl})`
+      }
+      return linkText
+    }
+    if (type === 'entity') {
+      try {
+        const parsed = JSON.parse(content)
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          return parsed[1]
+        }
+      } catch {
+        const match = content.match(/"([^"]+)"/)
+        if (match && match[1]) {
+          return match[1]
+        }
+      }
+      return content
+    }
+    if (type === 'cite') {
+      return ''
+    }
+    return content.split('\ue202')[0] || ''
+  })
+}
+
 function textBlock(text: string): TextBlock {
   return {
     kind: 'text',
-    text: text.replace(/\r\n/g, '\n').trim(),
+    text: cleanChatGptText(text.replace(/\r\n/g, '\n')).trim(),
   }
 }
 

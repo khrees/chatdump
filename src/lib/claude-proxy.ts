@@ -1,3 +1,5 @@
+import type { FetchImpl } from './types'
+
 export const CLAUDE_SNAPSHOT_PATH = '/api/claude-snapshot'
 
 export function isClaudeSnapshotProxyRequest(request: Request): boolean {
@@ -13,6 +15,7 @@ export function isClaudeSnapshotProxyRequest(request: Request): boolean {
  */
 export async function handleClaudeSnapshotProxyRequest(
   request: Request,
+  fetchImpl: FetchImpl = fetch,
 ): Promise<Response> {
   if (request.method !== 'GET') {
     return new Response(JSON.stringify({ error: 'method_not_allowed' }), {
@@ -36,7 +39,7 @@ export async function handleClaudeSnapshotProxyRequest(
   let response: Response
 
   try {
-    response = await fetch(snapshotUrl, {
+    response = await fetchImpl(snapshotUrl, {
       headers: {
         accept: 'application/json, text/plain, */*',
         'accept-language': 'en-US,en;q=0.9',
