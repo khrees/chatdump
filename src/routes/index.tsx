@@ -7,6 +7,7 @@ import rehypeHighlight from 'rehype-highlight'
 import { useDeferredValue, useEffect, useRef, useState, startTransition } from 'react'
 import { Button } from '../components/ui/button'
 import { ShareDropdown } from '../components/ui/share-dropdown'
+import { ChatContinuation } from '../components/ui/chat-continuation'
 import { cn } from '../lib/cn'
 import { splitMarkdownForPreview } from '../lib/markdown-preview'
 import { stripMarkdown } from '../lib/markdown-utils'
@@ -890,6 +891,7 @@ function Home() {
           ) : null}
 
           {hasResult ? (
+            <>
             <section
               className="panel-shell grid h-[min(32rem,calc(100dvh-3rem))] min-h-[28rem] grid-rows-[auto_1fr] gap-6 p-6 max-[1099px]:h-[min(31rem,calc(100dvh-1.75rem))] max-[1099px]:min-h-[24rem] max-[500px]:h-[calc(100svh-8rem)] max-[500px]:min-h-[26rem] max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4 max-[720px]:max-h-[calc(100svh-5rem)] min-[1100px]:h-[calc(100dvh-8.5rem)]"
               ref={outputSectionRef}
@@ -1198,6 +1200,9 @@ function Home() {
                 </pre>
               )}
             </section>
+
+              <ChatContinuation markdown={deferredMarkdown} />
+            </>
           ) : null}
         </div>
       </div>
