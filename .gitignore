@@ -6,3 +6,4 @@ dist
 .env.vercel.local
 .DS_Store
 /docs
+.interface-design/system.md

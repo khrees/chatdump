@@ -5,6 +5,40 @@ import type {
   NormalizedMessage,
 } from './types'
 
+function formatDateTime(dateOrString: Date | string): string {
+  try {
+    const date = typeof dateOrString === 'string' ? new Date(dateOrString) : dateOrString
+    if (Number.isNaN(date.getTime())) {
+      return String(dateOrString)
+    }
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ]
+    const yyyy = date.getUTCFullYear()
+    const month = months[date.getUTCMonth()]
+    const dd = date.getUTCDate()
+    let hh = date.getUTCHours()
+    const min = String(date.getUTCMinutes()).padStart(2, '0')
+    const ampm = hh >= 12 ? 'PM' : 'AM'
+    hh = hh % 12
+    hh = hh ? hh : 12
+    return `${month} ${dd}, ${yyyy} at ${hh}:${min} ${ampm} UTC`
+  } catch {
+    return String(dateOrString)
+  }
+}
+
 export function renderConversationToMarkdown(
   conversation: NormalizedConversation,
   options: Pick<
@@ -21,9 +55,9 @@ export function renderConversationToMarkdown(
     sections.push(
       [
         `Source: ${conversation.sourceUrl}`,
-        `Exported: ${(options.exportedAt ?? new Date()).toISOString()}`,
+        `Exported: ${formatDateTime(options.exportedAt ?? new Date())}`,
         conversation.createdAt
-          ? `Conversation Created: ${conversation.createdAt}`
+          ? `Conversation Created: ${formatDateTime(conversation.createdAt)}`
           : null,
       ]
         .filter(Boolean)
