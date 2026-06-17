@@ -3,5 +3,7 @@ dist
 .output
 .vercel
 .env.local
+.env.vercel.local
 .DS_Store
 /docs
+.interface-design/system.md

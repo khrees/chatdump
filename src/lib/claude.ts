@@ -14,6 +14,18 @@ export function isClaudeSnapshotResponseUrl(rawUrl: string): boolean {
   }
 }
 
+export function createClaudeSnapshotApiUrl(shareUrl: URL): URL {
+  const pathParts = shareUrl.pathname.split('/').filter(Boolean)
+  const shareId = pathParts[1]
+
+  if (!shareId) {
+    throw new Error('missing Claude share id')
+  }
+
+  return new URL(`/api/chat_snapshots/${shareId}`, 'https://claude.ai')
+}
+
+
 export function extractClaudeConversationPayloads(
   responseText: string,
 ): Record<string, unknown>[] {
@@ -59,7 +71,18 @@ function normalizeClaudeMessage(candidate: unknown): Record<string, unknown> | n
     return null
   }
 
+  // The browser-intercepted format has content as an array of typed blocks.
+  // The direct API format (claude.ai/api/chat_snapshots) has content: null
+  // and the full text at the top-level `text` field instead.
   const contentParts = extractClaudeContentParts(record.content)
+
+  if (contentParts.length === 0) {
+    const directText = readString(record.text)
+    if (directText) {
+      contentParts.push(directText)
+    }
+  }
+
   const attachments = extractClaudeAttachments(record)
 
   if (contentParts.length === 0 && attachments.length === 0) {

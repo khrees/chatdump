@@ -24,6 +24,15 @@ describe('normalizeShareUrl', () => {
     expect(normalized.url.toString()).toBe(
       'https://gemini.google.com/share/ee5bab956b9f',
     )
+
+    const normalizedShareGemini = normalizeShareUrl(
+      'https://share.gemini.google/P31DmQU0QsFI?utm_source=test',
+    )
+    expect(normalizedShareGemini.provider).toBe('gemini')
+    expect(normalizedShareGemini.shareId).toBe('P31DmQU0QsFI')
+    expect(normalizedShareGemini.url.toString()).toBe(
+      'https://gemini.google.com/share/P31DmQU0QsFI',
+    )
   })
 
   test('canonicalizes Claude share URLs', () => {

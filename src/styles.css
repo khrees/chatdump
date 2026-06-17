@@ -180,19 +180,50 @@ body::after {
 }
 
 .markdown-preview>*+* {
-  margin-top: 1rem;
+  margin-top: 1.2rem;
+}
+
+/* Headings spacing: more space above, less space below */
+.markdown-preview>*+h1 {
+  margin-top: 2.2rem;
+}
+.markdown-preview>*+h2 {
+  margin-top: 2rem;
+}
+.markdown-preview>*+h3,
+.markdown-preview>*+h4,
+.markdown-preview>*+h5,
+.markdown-preview>*+h6 {
+  margin-top: 1.6rem;
+}
+
+.markdown-preview>h1+*,
+.markdown-preview>h2+*,
+.markdown-preview>h3+*,
+.markdown-preview>h4+*,
+.markdown-preview>h5+*,
+.markdown-preview>h6+* {
+  margin-top: 0.5rem;
+}
+
+/* Bold pseudo-headings (paragraphs containing only bold text) */
+.markdown-preview>*+p:has(> strong:only-child) {
+  margin-top: 1.6rem;
+}
+.markdown-preview>p:has(> strong:only-child)+* {
+  margin-top: 0.5rem;
 }
 
 .markdown-preview>.table-scroll-wrapper+*,
 .markdown-preview>*+.table-scroll-wrapper {
-  margin-top: 1rem;
+  margin-top: 1.2rem;
 }
 
 .markdown-preview>pre+*,
 .markdown-preview>.code-block-wrapper+*,
 .markdown-preview>*+pre,
 .markdown-preview>*+.code-block-wrapper {
-  margin-top: 1.25rem;
+  margin-top: 1.4rem;
 }
 
 .markdown-preview strong {
@@ -209,7 +240,7 @@ body::after {
 .markdown-preview h3,
 .markdown-preview h4 {
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.25;
   margin: 0;
 }
 
@@ -257,7 +288,7 @@ body::after {
 .markdown-preview p+p,
 .markdown-preview ul+p,
 .markdown-preview ol+p {
-  margin-top: 0.75rem;
+  margin-top: 0.85rem;
 }
 
 .markdown-preview ul,

@@ -3,6 +3,11 @@ import type { AnyNode, Element } from 'domhandler'
 import { extractConversationInBrowser } from './browser'
 import { ChatdumpError } from './errors'
 import {
+  createClaudeSnapshotApiUrl,
+  extractClaudeConversationPayloads,
+} from './claude'
+import { handleClaudeSnapshotProxyRequest } from './claude-proxy'
+import {
   createCopilotShareConversationApiUrl,
   extractCopilotConversationPayloads,
 } from './copilot'
@@ -57,7 +62,29 @@ export async function convertShareUrlToMarkdown(
   rawUrl: string,
   options: ConvertOptions = {},
 ): Promise<ConvertResult> {
-  const { provider, url } = normalizeShareUrl(rawUrl)
+  let urlToNormalize = rawUrl
+  try {
+    const parsedUrl = new URL(rawUrl)
+    if (parsedUrl.hostname.toLowerCase() === 'share.gemini.google') {
+      const fetchImpl = options.fetchImpl ?? fetch
+      try {
+        const response = await fetchImpl(rawUrl, {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: AbortSignal.timeout(10_000),
+        })
+        if (response.url) {
+          urlToNormalize = response.url
+        }
+      } catch (err) {
+        console.warn('[chatdump] Failed to resolve share.gemini.google redirect', err)
+      }
+    }
+  } catch {
+    // Ignore URL parse error; normalizeShareUrl will throw the appropriate error
+  }
+
+  const { provider, url } = normalizeShareUrl(urlToNormalize)
   const fetchImpl = options.fetchImpl ?? fetch
   const loader = async () => {
     const { conversation, warnings } = await loadShareConversation(url, {
@@ -145,6 +172,14 @@ async function loadShareConversation(
     provider: ReturnType<typeof normalizeShareUrl>['provider']
   },
 ): Promise<{ conversation: NormalizedConversation; warnings: string[] }> {
+  if (options.provider === 'claude') {
+    return loadClaudeShareConversation(url, {
+      browserExtractor: options.browserExtractor,
+      enableBrowserFallback: options.enableBrowserFallback,
+      fetchImpl: options.fetchImpl,
+    })
+  }
+
   if (options.provider === 'grok') {
     return loadGrokShareConversation(url, {
       browserExtractor: options.browserExtractor,
@@ -181,6 +216,92 @@ async function loadShareConversation(
     })
 
     return resolveBrowserFallback(url.toString(), options.browserExtractor, cause)
+  }
+}
+
+async function loadClaudeShareConversation(
+  url: URL,
+  options: {
+    browserExtractor?: BrowserExtractor
+    enableBrowserFallback?: boolean
+    fetchImpl: FetchImpl
+  },
+): Promise<{ conversation: NormalizedConversation; warnings: string[] }> {
+  // Call the proxy handler directly (no HTTP self-call) to avoid VERCEL_URL
+  // auth issues. The handler fetches claude.ai/api/chat_snapshots/<id> with
+  // browser-like headers that bypass Cloudflare's bot check.
+  const apiUrl = createClaudeSnapshotApiUrl(url)
+  const shareId = apiUrl.pathname.split('/').pop()!
+
+  const proxyRequest = new Request(
+    `http://localhost/api/claude-snapshot?shareId=${shareId}`,
+  )
+  const response = await handleClaudeSnapshotProxyRequest(proxyRequest, options.fetchImpl)
+
+  if (response.status === 503) {
+    // 503 = Cloudflare managed challenge — fall back to browser
+    const error = new ChatdumpError(
+      'FETCH_FAILED',
+      'Claude share links are currently blocked by Cloudflare bot protection.',
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot blocked by Cloudflare; trying browser fallback', {
+      browserUrl: url.toString(),
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  if (!response.ok) {
+    const error = new ChatdumpError(
+      'FETCH_FAILED',
+      `Claude snapshot proxy returned HTTP ${response.status}`,
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot proxy non-OK; trying browser fallback', {
+      browserUrl: url.toString(),
+      status: response.status,
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  const responseText = await response.text()
+  const conversation = selectBestConversationFromPayloads(
+    extractClaudeConversationPayloads(responseText),
+    url.toString(),
+    getDefaultConversationTitle(url.toString()),
+  )
+
+  if (!conversation) {
+    const error = new ChatdumpError(
+      'EXTRACT_FAILED',
+      'could not extract conversation data from Claude snapshot payload',
+    )
+
+    if (options.enableBrowserFallback === false) {
+      throw error
+    }
+
+    console.warn('[chatdump] Claude snapshot extraction failed; trying browser fallback', {
+      browserUrl: url.toString(),
+      error: error.message,
+    })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, error)
+  }
+
+  return {
+    conversation,
+    warnings: [],
   }
 }
 
@@ -2180,10 +2301,42 @@ function isMeaningfulBlock(block: ContentBlock): boolean {
   }
 }
 
+function cleanChatGptText(text: string): string {
+  return text.replace(/\ue200([a-z]+)\ue202([^\ue201]*?)\ue201/g, (match, type, content) => {
+    if (type === 'url') {
+      const parts = content.split('\ue202')
+      const linkText = parts[0] || ''
+      const linkUrl = parts[1] || ''
+      if (linkUrl.startsWith('http://') || linkUrl.startsWith('https://')) {
+        return `[${linkText}](${linkUrl})`
+      }
+      return linkText
+    }
+    if (type === 'entity') {
+      try {
+        const parsed = JSON.parse(content)
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+          return parsed[1]
+        }
+      } catch {
+        const match = content.match(/"([^"]+)"/)
+        if (match && match[1]) {
+          return match[1]
+        }
+      }
+      return content
+    }
+    if (type === 'cite') {
+      return ''
+    }
+    return content.split('\ue202')[0] || ''
+  })
+}
+
 function textBlock(text: string): TextBlock {
   return {
     kind: 'text',
-    text: text.replace(/\r\n/g, '\n').trim(),
+    text: cleanChatGptText(text.replace(/\r\n/g, '\n')).trim(),
   }
 }
 
