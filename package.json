@@ -24,6 +24,8 @@
     "chromium-bidi": "latest",
     "highlight.js": "^11.11.1",
     "playwright-core": "latest",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "latest",
     "react-dom": "latest",
     "react-markdown": "^10.1.0",

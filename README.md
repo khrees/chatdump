@@ -10,6 +10,8 @@ Paste a public share link, get back a readable Markdown transcript with syntax h
 
 ChatGPT, Claude, Copilot, Gemini, and Grok.
 
+> **Note:** Claude share links may occasionally fail when the app is deployed on serverless infrastructure (Vercel, AWS Lambda). Claude's CDN applies bot-detection challenges to requests from datacenter IP ranges, which can block automated browser access. When this happens the conversion will return an error. There is no reliable fix for this without a paid proxy or scraping service.
+
 ## Features
 
 - **Multiple view modes** — View as raw Markdown, rendered preview with syntax highlighting, or plain text

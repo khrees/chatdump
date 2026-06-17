@@ -253,13 +253,42 @@ const convertShare = createServerFn({ method: 'POST' })
   }))
   .handler(async ({ data }) => {
     const { convertShareUrlToMarkdown } = await import('../lib/convert')
+    const { ChatdumpError } = await import('../lib/errors')
     const exportedAt = new Date()
 
-    const result = await convertShareUrlToMarkdown(data.url, { exportedAt })
+    try {
+      const result = await convertShareUrlToMarkdown(data.url, { exportedAt })
 
-    return {
-      markdown: result.markdown,
-      warnings: result.warnings,
+      return {
+        markdown: result.markdown,
+        warnings: result.warnings,
+      }
+    } catch (cause) {
+      console.error('[chatdump] Conversion failed', {
+        cause: cause instanceof Error ? cause.message : String(cause),
+        url: data.url,
+      })
+
+      if (cause instanceof ChatdumpError) {
+        switch (cause.code) {
+          case 'INVALID_URL':
+            throw new Error("That doesn't look like a valid URL.")
+          case 'UNSUPPORTED_URL':
+            throw new Error(
+              'That link isn\'t supported. Try a ChatGPT, Claude, Copilot, Gemini, or Grok share link.',
+            )
+          case 'FETCH_FAILED':
+            throw new Error(
+              "Couldn't reach that page. It may no longer be public.",
+            )
+          case 'EXTRACT_FAILED':
+            throw new Error(
+              "Couldn't extract the conversation. The link may have expired or changed.",
+            )
+        }
+      }
+
+      throw new Error('Something went wrong. Please try again.')
     }
   })
 

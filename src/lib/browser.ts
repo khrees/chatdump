@@ -76,9 +76,18 @@ export async function extractConversationInBrowser(
     url,
   })
 
-  const browser = await playwright.chromium.launch({
-    headless: true,
-  })
+  let browser: PlaywrightBrowser
+
+  try {
+    browser = await playwright.chromium.launch({ headless: true })
+  } catch (cause) {
+    logWarn('Playwright browser launch failed; browser fallback unavailable', {
+      error: getErrorMessage(cause),
+      executablePath: getSafeExecutablePath(executablePath),
+      url,
+    })
+    return null
+  }
 
   logInfo('Playwright browser launched', { url })
 
@@ -112,7 +121,7 @@ async function extractConversationInServerlessBrowser(
   })
 
   const browser = await runtime.playwrightCore.chromium.launch({
-    args: runtime.chromiumPackage.args,
+    args: [...runtime.chromiumPackage.args, '--disable-blink-features=AutomationControlled'],
     executablePath,
     headless: true,
   })
@@ -132,8 +141,17 @@ async function extractConversationFromLaunchedBrowser(
 ): Promise<BrowserExtractResult> {
   const provider = detectShareProvider(url)
   const page = await browser.newPage({
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+    locale: 'en-US',
+    timezoneId: 'America/New_York',
     userAgent: BROWSER_USER_AGENT,
+    viewport: { height: 1080, width: 1920 },
   })
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+  })
+
   const warnings: string[] = []
   const providerPayloadsPromise = waitForProviderPayloads(page, provider, url)
 
@@ -424,6 +442,8 @@ async function snapshotPage(page: any): Promise<BrowserExtractResult> {
   })
 }
 
+let stealthPluginRegistered = false
+
 async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime | null> {
   const chromiumPackagePath = resolveModulePath('@sparticuz/chromium')
   const playwrightCorePackagePath = resolveModulePath('playwright-core')
@@ -440,18 +460,6 @@ async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime 
     return null
   }
 
-  let playwrightCore: PlaywrightModule | null = null
-
-  try {
-    playwrightCore = require('playwright-core')
-  } catch (cause) {
-    logWarn('playwright-core require failed', {
-      error: getErrorMessage(cause),
-      playwrightCorePackagePath,
-    })
-    return null
-  }
-
   if (
     !chromiumPackage ||
     !Array.isArray(chromiumPackage.args) ||
@@ -461,6 +469,40 @@ async function loadServerlessBrowserRuntime(): Promise<ServerlessBrowserRuntime 
       chromiumPackagePath,
     })
     return null
+  }
+
+  // Try playwright-extra with stealth plugin to bypass bot detection.
+  // Falls back to plain playwright-core if unavailable.
+  let playwrightCore: PlaywrightModule | null = null
+
+  try {
+    const playwrightExtra = require('playwright-extra')
+
+    if (!stealthPluginRegistered) {
+      try {
+        const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+        playwrightExtra.chromium.use(StealthPlugin())
+        stealthPluginRegistered = true
+        logInfo('playwright-extra stealth plugin registered', {})
+      } catch (cause) {
+        logWarn('puppeteer-extra-plugin-stealth unavailable; stealth disabled', {
+          error: getErrorMessage(cause),
+        })
+      }
+    }
+
+    playwrightCore = playwrightExtra
+  } catch {
+    try {
+      playwrightCore = require('playwright-core')
+      logInfo('playwright-extra unavailable; using plain playwright-core', {})
+    } catch (cause) {
+      logWarn('playwright-core require failed', {
+        error: getErrorMessage(cause),
+        playwrightCorePackagePath,
+      })
+      return null
+    }
   }
 
   if (!playwrightCore) {
