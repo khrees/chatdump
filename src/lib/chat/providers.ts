@@ -13,25 +13,42 @@ export const MODEL_PROVIDERS: Record<ChatProvider, ProviderEntry> = {
     name: 'OpenAI',
     requiresProxy: true,
     models: [
-      { id: 'gpt-4o', name: 'GPT-4o', tier: 'best', provider: 'openai' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', tier: 'cheap', provider: 'openai' },
-      { id: 'o3-mini', name: 'o3-mini', tier: 'best', provider: 'openai' },
+      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', tier: 'best', provider: 'openai' },
+      { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', tier: 'best', provider: 'openai' },
+      { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', tier: 'cheap', provider: 'openai' },
     ],
   },
   anthropic: {
     name: 'Anthropic',
     requiresProxy: true,
     models: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', tier: 'best', provider: 'anthropic' },
-      { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku', tier: 'cheap', provider: 'anthropic' },
+      { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', tier: 'best', provider: 'anthropic' },
+      { id: 'claude-4.5-haiku', name: 'Claude 4.5 Haiku', tier: 'cheap', provider: 'anthropic' },
     ],
   },
   google: {
     name: 'Google AI',
     requiresProxy: false,
     models: [
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tier: 'best', provider: 'google' },
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tier: 'cheap', provider: 'google' },
+      { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', tier: 'best', provider: 'google' },
+      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', tier: 'cheap', provider: 'google' },
+      { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', tier: 'cheap', provider: 'google' },
+    ],
+  },
+  grok: {
+    name: 'Grok',
+    requiresProxy: true,
+    models: [
+      { id: 'grok-4.3', name: 'Grok 4.3', tier: 'best', provider: 'grok' },
+      { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', tier: 'cheap', provider: 'grok' },
+    ],
+  },
+  mistral: {
+    name: 'Mistral',
+    requiresProxy: true,
+    models: [
+      { id: 'mistral-large-latest', name: 'Mistral Large', tier: 'best', provider: 'mistral' },
+      { id: 'mistral-small-latest', name: 'Mistral Small', tier: 'cheap', provider: 'mistral' },
     ],
   },
   ollama: {

@@ -5,7 +5,7 @@ export interface ChatMessage {
   role: 'assistant' | 'system' | 'user'
 }
 
-export type ChatProvider = 'anthropic' | 'custom' | 'google' | 'lmstudio' | 'ollama' | 'openai'
+export type ChatProvider = 'anthropic' | 'custom' | 'google' | 'grok' | 'lmstudio' | 'mistral' | 'ollama' | 'openai'
 
 export type ModelTier = 'best' | 'cheap'
 

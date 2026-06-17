@@ -1,6 +1,6 @@
 export const CHAT_PROXY_PATH = '/api/chat-proxy'
 
-type ChatProvider = 'anthropic' | 'openai'
+type ChatProvider = 'anthropic' | 'openai' | 'grok' | 'mistral'
 
 interface ChatMessage {
   content: string
@@ -8,7 +8,7 @@ interface ChatMessage {
 }
 
 interface ChatProxyRequestBody {
-  apiKey: string
+  apiKey?: string
   messages: ChatMessage[]
   model: string
   provider: ChatProvider
@@ -20,7 +20,7 @@ export function isChatProxyRequest(request: Request): boolean {
 
 /**
  * Streaming chat proxy that forwards chat completion requests to cloud AI
- * providers (OpenAI, Anthropic). The browser can't call these APIs directly
+ * providers (OpenAI, Anthropic, Grok, Mistral). The browser can't call these APIs directly
  * due to CORS restrictions. This proxy:
  * - Receives the request from the browser
  * - Forwards it to the appropriate provider API
@@ -46,13 +46,15 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
     })
   }
 
-  const { apiKey, messages, model, provider } = body
+  const { apiKey: bodyApiKey, messages, model, provider } = body
+  const authHeader = request.headers.get('authorization')
+  const apiKey = bodyApiKey || (authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined)
 
   if (!provider || !model || !messages || !apiKey) {
     return new Response(
       JSON.stringify({
         error: 'missing_fields',
-        message: 'Required fields: provider, model, messages, apiKey',
+        message: 'Required fields: provider, model, messages, apiKey (in body or Authorization header)',
       }),
       {
         headers: { 'content-type': 'application/json' },
@@ -61,11 +63,11 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
     )
   }
 
-  if (provider !== 'openai' && provider !== 'anthropic') {
+  if (provider !== 'openai' && provider !== 'anthropic' && provider !== 'grok' && provider !== 'mistral') {
     return new Response(
       JSON.stringify({
         error: 'unsupported_provider',
-        message: `Provider must be "openai" or "anthropic", got "${provider}"`,
+        message: `Provider must be "openai", "anthropic", "grok", or "mistral", got "${provider}"`,
       }),
       {
         headers: { 'content-type': 'application/json' },
@@ -77,9 +79,17 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
   let upstreamResponse: Response
 
   try {
-    upstreamResponse = provider === 'openai'
-      ? await fetchOpenAI(model, messages, apiKey)
-      : await fetchAnthropic(model, messages, apiKey)
+    if (provider === 'openai') {
+      upstreamResponse = await fetchOpenAI(model, messages, apiKey)
+    } else if (provider === 'anthropic') {
+      upstreamResponse = await fetchAnthropic(model, messages, apiKey)
+    } else if (provider === 'grok') {
+      upstreamResponse = await fetchGrok(model, messages, apiKey)
+    } else if (provider === 'mistral') {
+      upstreamResponse = await fetchMistral(model, messages, apiKey)
+    } else {
+      throw new Error(`Unsupported provider: ${provider}`)
+    }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : 'network error'
     console.warn('[chatdump] Chat proxy: fetch failed', { message, provider })
@@ -139,6 +149,44 @@ async function fetchOpenAI(
   apiKey: string,
 ): Promise<Response> {
   return fetch('https://api.openai.com/v1/chat/completions', {
+    body: JSON.stringify({
+      messages,
+      model,
+      stream: true,
+    }),
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  })
+}
+
+async function fetchGrok(
+  model: string,
+  messages: ChatMessage[],
+  apiKey: string,
+): Promise<Response> {
+  return fetch('https://api.x.ai/v1/chat/completions', {
+    body: JSON.stringify({
+      messages,
+      model,
+      stream: true,
+    }),
+    headers: {
+      'authorization': `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  })
+}
+
+async function fetchMistral(
+  model: string,
+  messages: ChatMessage[],
+  apiKey: string,
+): Promise<Response> {
+  return fetch('https://api.mistral.ai/v1/chat/completions', {
     body: JSON.stringify({
       messages,
       model,

@@ -11,7 +11,7 @@ const CHAT_SETTINGS_KEY = 'chatdump.chat-settings.v1'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ChatProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'lmstudio' | 'custom'
+type ChatProvider = 'openai' | 'anthropic' | 'google' | 'grok' | 'mistral' | 'ollama' | 'lmstudio' | 'custom'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -34,6 +34,8 @@ interface ChatSettings {
   openai: ProviderSettings
   anthropic: ProviderSettings
   google: ProviderSettings
+  grok: ProviderSettings
+  mistral: ProviderSettings
   ollama: ProviderSettings
   lmstudio: ProviderSettings
   custom: ProviderSettings
@@ -54,6 +56,8 @@ const DEFAULT_SETTINGS: ChatSettings = {
   openai: { apiKey: '', baseUrl: 'https://api.openai.com', enabled: false },
   anthropic: { apiKey: '', baseUrl: 'https://api.anthropic.com', enabled: false },
   google: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com', enabled: false },
+  grok: { apiKey: '', baseUrl: 'https://api.x.ai', enabled: false },
+  mistral: { apiKey: '', baseUrl: 'https://api.mistral.ai', enabled: false },
   ollama: { apiKey: '', baseUrl: 'http://localhost:11434', enabled: false },
   lmstudio: { apiKey: '', baseUrl: 'http://localhost:1234', enabled: false },
   custom: { apiKey: '', baseUrl: '', enabled: false },
@@ -62,19 +66,26 @@ const DEFAULT_SETTINGS: ChatSettings = {
 }
 
 const CLOUD_MODELS: ModelOption[] = [
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai' },
-  { id: 'o3-mini', name: 'o3-mini', provider: 'openai' },
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
-  { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku', provider: 'anthropic' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'google' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google' },
+  { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', provider: 'openai' },
+  { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'openai' },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai' },
+  { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
+  { id: 'claude-4.5-haiku', name: 'Claude 4.5 Haiku', provider: 'anthropic' },
+  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'google' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'google' },
+  { id: 'grok-4.3', name: 'Grok 4.3', provider: 'grok' },
+  { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', provider: 'grok' },
+  { id: 'mistral-large-latest', name: 'Mistral Large', provider: 'mistral' },
+  { id: 'mistral-small-latest', name: 'Mistral Small', provider: 'mistral' },
 ]
 
 const PROVIDER_LABELS: Record<ChatProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   google: 'Google AI',
+  grok: 'Grok',
+  mistral: 'Mistral',
   ollama: 'Ollama',
   lmstudio: 'LM Studio',
   custom: 'Custom',
@@ -303,7 +314,9 @@ async function* streamChatCompletion(
     }
 
     case 'openai':
-    case 'anthropic': {
+    case 'anthropic':
+    case 'grok':
+    case 'mistral': {
       // Route through server proxy for CORS
       const body: Record<string, unknown> = {
         provider,
@@ -405,10 +418,25 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     openai: 'idle',
     anthropic: 'idle',
     google: 'idle',
+    grok: 'idle',
+    mistral: 'idle',
     ollama: 'idle',
     lmstudio: 'idle',
     custom: 'idle',
   })
+  const [activeCloudEdit, setActiveCloudEdit] = useState<'openai' | 'anthropic' | 'google' | 'grok' | 'mistral'>('openai')
+  const [activeLocalEdit, setActiveLocalEdit] = useState<'ollama' | 'lmstudio' | 'custom'>('ollama')
+
+  // Synchronize active cloud and local edit providers with selected provider
+  useEffect(() => {
+    if (isSettingsOpen) {
+      if (['openai', 'anthropic', 'google', 'grok', 'mistral'].includes(settings.selectedProvider)) {
+        setActiveCloudEdit(settings.selectedProvider as any)
+      } else if (['ollama', 'lmstudio', 'custom'].includes(settings.selectedProvider)) {
+        setActiveLocalEdit(settings.selectedProvider as any)
+      }
+    }
+  }, [isSettingsOpen, settings.selectedProvider])
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -616,7 +644,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
           onClick={() => setIsSettingsOpen(false)}
         >
           <div
-            className="panel-shell w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 max-[720px]:p-5"
+            className="panel-shell w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 max-[720px]:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-5">
@@ -640,35 +668,59 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                 <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
                   Cloud Providers
                 </p>
-                {(['openai', 'anthropic', 'google'] as const).map((provider) => (
-                  <div
-                    key={provider}
-                    className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4"
-                  >
-                    <div className="flex items-center justify-between pb-3">
-                      <span className="text-[0.9rem] font-semibold text-ink">
-                        {PROVIDER_LABELS[provider]}
-                      </span>
-                      <ConnectionBadge status={connectionStatus[provider]} />
-                    </div>
-                    <div className="grid gap-2.5">
-                      <input
-                        type="password"
-                        placeholder="API Key"
-                        value={settings[provider].apiKey}
-                        onChange={(e) => updateProviderSettings(provider, { apiKey: e.target.value })}
-                        className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.82rem] font-semibold text-ink-soft">
+                    Select Provider to Configure
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={activeCloudEdit}
+                      onChange={(e) => setActiveCloudEdit(e.target.value as any)}
+                      className="w-full appearance-none rounded-lg border border-line bg-white/50 px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,background] hover:border-line-strong hover:bg-white/72 focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                    >
+                      <option value="openai">OpenAI</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="google">Google AI</option>
+                      <option value="grok">Grok (xAI)</option>
+                      <option value="mistral">Mistral</option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M6 9l6 6 6-6"
+                        className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleTestConnection(provider)}
-                        className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
-                      >
-                        Test Connection
-                      </button>
-                    </div>
+                    </svg>
                   </div>
-                ))}
+                </div>
+
+                <div className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4 mt-1">
+                  <div className="flex items-center justify-between pb-3">
+                    <span className="text-[0.9rem] font-semibold text-ink">
+                      {PROVIDER_LABELS[activeCloudEdit]} Settings
+                    </span>
+                    <ConnectionBadge status={connectionStatus[activeCloudEdit]} />
+                  </div>
+                  <div className="grid gap-2.5">
+                    <input
+                      type="password"
+                      placeholder="API Key"
+                      value={settings[activeCloudEdit].apiKey}
+                      onChange={(e) => updateProviderSettings(activeCloudEdit, { apiKey: e.target.value })}
+                      className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleTestConnection(activeCloudEdit)}
+                      className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
+                    >
+                      Test Connection
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Local Providers */}
@@ -676,54 +728,76 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                 <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
                   Local Models
                 </p>
-                {(['ollama', 'lmstudio', 'custom'] as const).map((provider) => (
-                  <div
-                    key={provider}
-                    className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4"
-                  >
-                    <div className="flex items-center justify-between pb-3">
-                      <span className="text-[0.9rem] font-semibold text-ink">
-                        {PROVIDER_LABELS[provider]}
-                      </span>
-                      <ConnectionBadge status={connectionStatus[provider]} />
-                    </div>
-                    <div className="grid gap-2.5">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[0.82rem] font-semibold text-ink-soft">
+                    Select Local Provider to Configure
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={activeLocalEdit}
+                      onChange={(e) => setActiveLocalEdit(e.target.value as any)}
+                      className="w-full appearance-none rounded-lg border border-line bg-white/50 px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,background] hover:border-line-strong hover:bg-white/72 focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                    >
+                      <option value="ollama">Ollama</option>
+                      <option value="lmstudio">LM Studio</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M6 9l6 6 6-6"
+                        className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
+                      />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4 mt-1">
+                  <div className="flex items-center justify-between pb-3">
+                    <span className="text-[0.9rem] font-semibold text-ink">
+                      {PROVIDER_LABELS[activeLocalEdit]} Settings
+                    </span>
+                    <ConnectionBadge status={connectionStatus[activeLocalEdit]} />
+                  </div>
+                  <div className="grid gap-2.5">
+                    <input
+                      type="text"
+                      placeholder="Endpoint URL"
+                      value={settings[activeLocalEdit].baseUrl}
+                      onChange={(e) => updateProviderSettings(activeLocalEdit, { baseUrl: e.target.value })}
+                      className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                    />
+                    {activeLocalEdit === 'custom' && (
                       <input
-                        type="text"
-                        placeholder="Endpoint URL"
-                        value={settings[provider].baseUrl}
-                        onChange={(e) => updateProviderSettings(provider, { baseUrl: e.target.value })}
+                        type="password"
+                        placeholder="API Key (optional)"
+                        value={settings[activeLocalEdit].apiKey}
+                        onChange={(e) => updateProviderSettings(activeLocalEdit, { apiKey: e.target.value })}
                         className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
                       />
-                      {provider === 'custom' && (
-                        <input
-                          type="password"
-                          placeholder="API Key (optional)"
-                          value={settings[provider].apiKey}
-                          onChange={(e) => updateProviderSettings(provider, { apiKey: e.target.value })}
-                          className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
-                        />
-                      )}
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleFetchModels(provider)}
-                          disabled={isFetchingModels}
-                          className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink disabled:opacity-50"
-                        >
-                          {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTestConnection(provider)}
-                          className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
-                        >
-                          Test
-                        </button>
-                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleFetchModels(activeLocalEdit)}
+                        disabled={isFetchingModels}
+                        className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink disabled:opacity-50"
+                      >
+                        {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection(activeLocalEdit)}
+                        className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
+                      >
+                        Test
+                      </button>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
 
               <p className="text-center text-[0.78rem] text-ink-soft">
