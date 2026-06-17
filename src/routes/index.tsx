@@ -280,6 +280,7 @@ function Home() {
   const [isPlainText, setIsPlainText] = useState(false)
   const [recentUrls, setRecentUrls] = useState<string[]>([])
   const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false)
+  const [isWhyModalOpen, setIsWhyModalOpen] = useState(false)
   const urlInputRef = useRef<HTMLInputElement | null>(null)
   const outputSectionRef = useRef<HTMLElement | null>(null)
   const outputBodyRef = useRef<HTMLElement | null>(null)
@@ -295,6 +296,27 @@ function Home() {
 
   const deferredMarkdown = useDeferredValue(markdown)
   const hasResult = deferredMarkdown.length > 0
+
+  const useCases = [
+    {
+      id: 1,
+      title: 'Export AI chat conversations',
+      description:
+        'Export any AI chat to readable Markdown — no more copy-pasting messages manually. Copy, or download the file.',
+    },
+    {
+      id: 2,
+      title: 'Continue conversations elsewhere',
+      description:
+        'Use the Share dropdown to copy a conversation and continue it in ChatGPT, Claude, or any other AI chat. Get a different perspective on the same context.',
+    },
+    {
+      id: 3,
+      title: 'Works with any AI platform',
+      description:
+        'One tool for ChatGPT, Claude, Copilot, Gemini, and Grok. No need to switch between different export methods.',
+    },
+  ]
   const isRenderedPreview = outputMode === 'preview'
   const lineCount = hasResult ? deferredMarkdown.split('\n').length : 0
   const characterCount = hasResult ? deferredMarkdown.length : 0
@@ -450,7 +472,13 @@ function Home() {
     if (typeof window === 'undefined') return
     localStorage.removeItem('chatdump.home-state.v1')
     localStorage.removeItem('chatdump.recent-urls.v1')
-    window.location.reload()
+    setUrl('')
+    setMarkdown('')
+    setWarnings([])
+    setOutputMode('markdown')
+    setIsPlainText(false)
+    setError(null)
+    urlInputRef.current?.focus()
   }
 
   function handlePreview() {
@@ -506,6 +534,19 @@ function Home() {
       toastTimeoutsRef.current.clear()
     }
   }, [])
+
+  useEffect(() => {
+    if (!isWhyModalOpen) return
+
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setIsWhyModalOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isWhyModalOpen])
 
   useEffect(() => {
     const persistedState = readPersistedHomeState()
@@ -610,6 +651,59 @@ function Home() {
         </div>
       ) : null}
 
+      {isWhyModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20 p-4 backdrop-blur-[2px]"
+          onClick={() => setIsWhyModalOpen(false)}
+        >
+          <div
+            className="panel-shell w-full max-w-lg p-6 max-[720px]:p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-5">
+              <h2 className="text-[1.05rem] font-bold text-ink">
+                Why use chatdump?
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsWhyModalOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-colors hover:bg-white/68 hover:border-line-strong"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    className="fill-none stroke-current stroke-[2] stroke-linecap-round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="grid gap-5">
+              {useCases.map((useCase) => (
+                <div
+                  key={useCase.id}
+                  className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-5"
+                >
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brass/15 text-[0.85rem] font-semibold">
+                      {useCase.id}
+                    </span>
+                    <h3 className="font-semibold text-ink">{useCase.title}</h3>
+                  </div>
+                  <p className="text-[0.9rem] leading-relaxed text-ink-muted">
+                    {useCase.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto grid max-w-[1380px] gap-4 max-[720px]:gap-3">
         <header className="flex items-center justify-between gap-4 px-1 pt-1 max-[500px]:pt-0.5 max-[720px]:px-0">
           <button
@@ -626,6 +720,16 @@ function Home() {
               />
             </span>
           </button>
+
+          {!hasResult && (
+            <button
+              type="button"
+              onClick={() => setIsWhyModalOpen(true)}
+              className="w-fit rounded-full border border-line-strong bg-white/72 px-4 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-ink-soft shadow-soft transition-colors hover:bg-white hover:text-ink max-[721px]:hidden"
+            >
+              Why use chatdump
+            </button>)}
+
         </header>
 
         <div className="grid gap-4">
@@ -643,8 +747,6 @@ function Home() {
                     you can review and copy.
                   </p>
                 </div>
-
-
               </div>
 
               <form

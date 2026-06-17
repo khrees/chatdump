@@ -49,6 +49,14 @@ https://grok.com/share/<id>
 
 Redirects between supported share domains are handled automatically.
 
+## Why use chatdump?
+
+**Export any AI chat to readable Markdown** — No more copy-pasting messages manually. Copy, save, or continue anywhere.
+
+**Works with any AI platform** — One tool for ChatGPT, Claude, Copilot, Gemini, and Grok. No need to switch between different export methods.
+
+**Continue conversations elsewhere** — Use the Share dropdown to copy a conversation and continue it in ChatGPT, Claude, or any other AI chat. Get a different perspective on the same context.
+
 ## CLI
 
 ```bash
