@@ -4,14 +4,15 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeHighlight from 'rehype-highlight'
-import { useDeferredValue, useEffect, useRef, useState, startTransition } from 'react'
+import { useDeferredValue, useEffect, useRef, useState, startTransition, useMemo } from 'react'
 import { Button } from '../components/ui/button'
-import { ShareDropdown } from '../components/ui/share-dropdown'
 import { ChatContinuation } from '../components/ui/chat-continuation'
 import { cn } from '../lib/cn'
 import { splitMarkdownForPreview } from '../lib/markdown-preview'
 import { stripMarkdown } from '../lib/markdown-utils'
 import { deleteShareConversationCacheEntry } from '../lib/share-cache'
+import { renderConversationToMarkdown } from '../lib/render'
+import type { NormalizedConversation } from '../lib/types'
 
 const RECENT_URLS_KEY = 'chatdump.recent-urls.v1'
 const MAX_RECENT_URLS = 10
@@ -28,9 +29,10 @@ type Toast = {
 
 type PersistedHomeState = {
   markdown: string
-  outputMode: 'markdown' | 'preview'
+  outputMode: 'markdown' | 'preview' | 'plain'
   url: string
   warnings: string[]
+  conversation?: NormalizedConversation
 }
 
 function buildImageCandidates(src: string | undefined): string[] {
@@ -206,7 +208,9 @@ function readPersistedHomeState(): PersistedHomeState | null {
     }
 
     const outputMode =
-      parsedState.outputMode === 'preview' ? 'preview' : 'markdown'
+      ['preview', 'markdown', 'plain'].includes(parsedState.outputMode)
+        ? parsedState.outputMode
+        : 'markdown'
     const url = typeof parsedState.url === 'string' ? parsedState.url : ''
     const markdown =
       typeof parsedState.markdown === 'string' ? parsedState.markdown : ''
@@ -215,6 +219,7 @@ function readPersistedHomeState(): PersistedHomeState | null {
         (warning: unknown): warning is string => typeof warning === 'string',
       )
       : []
+    const conversation = parsedState.conversation || null
 
     if (!url && !markdown && warnings.length === 0 && outputMode === 'markdown') {
       return null
@@ -224,7 +229,8 @@ function readPersistedHomeState(): PersistedHomeState | null {
       url,
       markdown,
       warnings,
-      outputMode,
+      outputMode: outputMode as any,
+      conversation,
     }
   } catch {
     window.sessionStorage.removeItem(persistedHomeStateKey)
@@ -263,6 +269,7 @@ const convertShare = createServerFn({ method: 'POST' })
       return {
         markdown: result.markdown,
         warnings: result.warnings,
+        conversation: result.conversation,
       }
     } catch (cause) {
       console.error('[chatdump] Conversion failed', {
@@ -297,19 +304,49 @@ export const Route = createFileRoute('/')({
   component: Home,
 })
 
+function detectPlatform(urlStr: string) {
+  if (!urlStr) return null
+  try {
+    const parsed = new URL(urlStr)
+    const hostname = parsed.hostname.toLowerCase()
+    if (hostname.includes('chatgpt.com') || hostname.includes('openai.com')) {
+      return { id: 'chatgpt', name: 'ChatGPT', color: 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400', logo: 'GPT', bg: 'bg-emerald-500/10' }
+    }
+    if (hostname.includes('claude.ai')) {
+      return { id: 'claude', name: 'Claude', color: 'border-amber-500/30 text-amber-600 dark:text-amber-400', logo: 'Claude', bg: 'bg-amber-500/10' }
+    }
+    if (hostname.includes('copilot.microsoft.com') || hostname.includes('bing.com')) {
+      return { id: 'copilot', name: 'Copilot', color: 'border-cyan-500/30 text-cyan-600 dark:text-cyan-400', logo: 'Copilot', bg: 'bg-cyan-500/10' }
+    }
+    if (hostname.includes('gemini.google.com')) {
+      return { id: 'gemini', name: 'Gemini', color: 'border-indigo-500/30 text-indigo-600 dark:text-indigo-400', logo: 'Gemini', bg: 'bg-indigo-500/10' }
+    }
+    if (hostname.includes('grok.com') || hostname.includes('x.ai')) {
+      return { id: 'grok', name: 'Grok', color: 'border-slate-800/30 dark:border-slate-200/30 text-slate-800 dark:text-slate-200', logo: 'Grok', bg: 'bg-slate-500/10' }
+    }
+  } catch {
+    // Ignore
+  }
+  return null
+}
+
 function Home() {
   const [url, setUrl] = useState('')
   const [markdown, setMarkdown] = useState('')
+  const [conversation, setConversation] = useState<NormalizedConversation | null>(null)
+  const [includeMetadata, setIncludeMetadata] = useState(true)
+  const [includeSystemMessages, setIncludeSystemMessages] = useState(false)
+  const [removeEmojis, setRemoveEmojis] = useState(false)
+  const [cleanHtml, setCleanHtml] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
-  const [outputMode, setOutputMode] = useState<'markdown' | 'preview'>('markdown')
+  const [outputMode, setOutputMode] = useState<'markdown' | 'preview' | 'plain'>('markdown')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [hasHydratedState, setHasHydratedState] = useState(false)
-  const [isPlainText, setIsPlainText] = useState(false)
   const [recentUrls, setRecentUrls] = useState<string[]>([])
-  const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false)
+  const [searchRecent, setSearchRecent] = useState('')
   const [isWhyModalOpen, setIsWhyModalOpen] = useState(false)
   const urlInputRef = useRef<HTMLInputElement | null>(null)
   const outputSectionRef = useRef<HTMLElement | null>(null)
@@ -324,7 +361,31 @@ function Home() {
     warnings: [],
   })
 
-  const deferredMarkdown = useDeferredValue(markdown)
+  const processedMarkdown = useMemo(() => {
+    if (!conversation) return markdown
+
+    // 1. Generate markdown using options
+    let md = renderConversationToMarkdown(conversation, {
+      includeMetadata,
+      includeSystemMessages,
+    })
+
+    // 2. Clean Emojis if selected
+    if (removeEmojis) {
+      const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F900}-\u{1F9FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu
+      md = md.replace(emojiRegex, '')
+    }
+
+    // 3. Clean custom HTML tags and comments
+    if (cleanHtml) {
+      md = md.replace(/<!--[\s\S]*?-->/g, '')
+      md = md.replace(/<\/?[a-zA-Z]+(?:\s+[a-zA-Z]+="[^"]*")*\s*\/?>/g, '')
+    }
+
+    return md
+  }, [conversation, markdown, includeMetadata, includeSystemMessages, removeEmojis, cleanHtml])
+
+  const deferredMarkdown = useDeferredValue(processedMarkdown)
   const hasResult = deferredMarkdown.length > 0
 
   const useCases = [
@@ -348,6 +409,7 @@ function Home() {
     },
   ]
   const isRenderedPreview = outputMode === 'preview'
+  const isPlainText = outputMode === 'plain'
   const lineCount = hasResult ? deferredMarkdown.split('\n').length : 0
   const characterCount = hasResult ? deferredMarkdown.length : 0
   const warningCount = warnings.length
@@ -358,9 +420,8 @@ function Home() {
       : copyState === 'error'
         ? 'Copy failed'
         : 'Copy .MD'
-  const previewLabel = isRenderedPreview ? 'Show Markdown' : 'Show Preview'
-  const plainTextLabel = isPlainText ? 'Show Markdown' : 'Plain Text'
   const displayMarkdown = isPlainText ? stripMarkdown(deferredMarkdown) : deferredMarkdown
+  const platform = detectPlatform(url)
 
   function removeToast(id: number) {
     const timeoutId = toastTimeoutsRef.current.get(id)
@@ -419,6 +480,9 @@ function Home() {
           }
 
           setMarkdown(result.markdown)
+          if (result.conversation) {
+            setConversation(result.conversation)
+          }
           setOutputMode(hasMarkdownTable(result.markdown) ? 'preview' : 'markdown')
           setWarnings(result.warnings)
         })
@@ -448,6 +512,7 @@ function Home() {
 
   function handleEditUrl() {
     setMarkdown('')
+    setConversation(null)
     setWarnings([])
     setError(null)
     setOutputMode('markdown')
@@ -483,19 +548,18 @@ function Home() {
       return
     }
 
+    const title = conversation?.title || 'conversation'
+    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'conversation'
+
     const blob = new Blob([deferredMarkdown], { type: 'text/markdown' })
     const urlBlob = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = urlBlob
-    a.download = 'conversation.md'
+    a.download = `${cleanTitle}.md`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(urlBlob)
-  }
-
-  function handleOpenProvider(url: string) {
-    window.open(url, '_blank')
   }
 
   function handleLogoClick() {
@@ -504,31 +568,11 @@ function Home() {
     localStorage.removeItem('chatdump.recent-urls.v1')
     setUrl('')
     setMarkdown('')
+    setConversation(null)
     setWarnings([])
     setOutputMode('markdown')
-    setIsPlainText(false)
     setError(null)
     urlInputRef.current?.focus()
-  }
-
-  function handlePreview() {
-    setOutputMode((currentMode) =>
-      currentMode === 'preview' ? 'markdown' : 'preview',
-    )
-
-    outputSectionRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-    })
-
-    window.requestAnimationFrame(() => {
-      outputBodyRef.current?.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      })
-
-      outputBodyRef.current?.focus()
-    })
   }
 
   useEffect(() => {
@@ -585,12 +629,10 @@ function Home() {
       setUrl(persistedState.url)
       setMarkdown(persistedState.markdown)
       setWarnings(persistedState.warnings)
-      setOutputMode(
-        persistedState.outputMode === 'preview' ||
-          hasMarkdownTable(persistedState.markdown)
-          ? 'preview'
-          : 'markdown',
-      )
+      setOutputMode(persistedState.outputMode as any)
+      if (persistedState.conversation) {
+        setConversation(persistedState.conversation)
+      }
       previousFeedbackRef.current = {
         error: null,
         warnings: persistedState.warnings,
@@ -615,12 +657,13 @@ function Home() {
         url,
         markdown,
         warnings,
-        outputMode,
+        outputMode: outputMode as any,
+        conversation: conversation || undefined,
       })
     } catch {
       // Ignore storage failures and keep the in-memory state intact.
     }
-  }, [hasHydratedState, markdown, outputMode, url, warnings])
+  }, [hasHydratedState, markdown, outputMode, url, warnings, conversation])
 
   useEffect(() => {
     if (!hasResult) {
@@ -633,42 +676,56 @@ function Home() {
     })
   }, [hasResult])
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        urlInputRef.current?.focus()
+        urlInputRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const filteredRecentUrls = recentUrls.filter(u => u.toLowerCase().includes(searchRecent.toLowerCase()))
+
   return (
-    <main className="app-frame">
+    <main className="app-frame font-sans">
       {toasts.length > 0 ? (
         <div
           aria-live="polite"
-          className="pointer-events-none fixed top-5 right-5 z-30 grid w-[min(24rem,calc(100vw-2rem))] gap-3 max-[500px]:top-3 max-[500px]:right-3 max-[500px]:left-3 max-[500px]:w-auto max-[720px]:top-4 max-[720px]:right-4 max-[720px]:w-[calc(100vw-2rem)]"
+          className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50 grid w-[min(28rem,calc(100vw-2rem))] gap-2.5"
         >
           {toasts.map((toast) => (
             <div
               className={cn(
-                'pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-[0.85rem] rounded-[1.1rem] border p-[0.95rem] pr-[0.95rem] pl-4 shadow-soft backdrop-blur-[20px]',
+                'pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3.5 pr-3 pl-4 shadow-lg backdrop-blur-md transition-all duration-300 animate-slide-up',
                 toast.kind === 'error'
-                  ? 'border-[rgba(142,57,44,0.18)] bg-[linear-gradient(180deg,rgba(255,240,236,0.94),rgba(255,246,242,0.9))]'
-                  : 'border-[rgba(156,118,45,0.18)] bg-[linear-gradient(180deg,rgba(255,245,228,0.94),rgba(255,249,240,0.88))]',
+                  ? 'border-rose-200 bg-rose-50/95 dark:bg-rose-950/90 dark:border-rose-900/50 text-rose-800 dark:text-rose-200'
+                  : 'border-amber-200 bg-amber-50/95 dark:bg-amber-950/90 dark:border-amber-900/50 text-amber-800 dark:text-amber-200',
               )}
               key={toast.id}
               role={toast.kind === 'error' ? 'alert' : 'status'}
             >
-              <div className="grid gap-[0.3rem]">
+              <div className="grid gap-[0.2rem]">
                 <p
                   className={cn(
                     monoCapsClass,
-                    'font-mono text-[0.72rem]',
+                    'font-mono text-[0.68rem] font-bold uppercase tracking-wider',
                     toast.kind === 'error'
-                      ? 'text-danger-ink'
-                      : 'text-warning-ink',
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : 'text-amber-600 dark:text-amber-400',
                   )}
                 >
                   {toast.kind === 'error' ? 'Error' : 'Warning'}
                 </p>
-                <p className="leading-[1.6] text-ink">{toast.message}</p>
+                <p className="text-[0.85rem] leading-[1.5] font-medium">{toast.message}</p>
               </div>
 
               <button
                 aria-label={`Dismiss ${toast.kind}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[transform,background,border-color] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/68"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-paper/50 hover:bg-paper-raised text-ink-soft hover:text-ink transition-colors"
                 type="button"
                 onClick={() => removeToast(toast.id)}
               >
@@ -683,21 +740,21 @@ function Home() {
 
       {isWhyModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
           onClick={() => setIsWhyModalOpen(false)}
         >
           <div
-            className="panel-shell w-full max-w-lg p-6 max-[720px]:p-5"
+            className="panel-shell w-full max-w-lg p-6 max-[720px]:p-5 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-5">
+            <div className="flex items-center justify-between pb-5 border-b border-line">
               <h2 className="text-[1.05rem] font-bold text-ink">
                 Why use chatdump?
               </h2>
               <button
                 type="button"
                 onClick={() => setIsWhyModalOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-colors hover:bg-white/68 hover:border-line-strong"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-paper/50 text-ink-soft hover:text-ink transition-colors"
               >
                 <svg
                   aria-hidden="true"
@@ -712,19 +769,19 @@ function Home() {
               </button>
             </div>
 
-            <div className="grid gap-5">
+            <div className="grid gap-5 mt-5">
               {useCases.map((useCase) => (
                 <div
                   key={useCase.id}
-                  className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-5"
+                  className="rounded-lg border border-line bg-paper-elevated p-4 shadow-sm"
                 >
-                  <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brass/15 text-[0.85rem] font-semibold">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded bg-teal/10 text-teal text-[0.8rem] font-bold">
                       {useCase.id}
                     </span>
-                    <h3 className="font-semibold text-ink">{useCase.title}</h3>
+                    <h3 className="font-bold text-ink">{useCase.title}</h3>
                   </div>
-                  <p className="text-[0.9rem] leading-relaxed text-ink-muted">
+                  <p className="text-[0.82rem] leading-relaxed text-ink-muted">
                     {useCase.description}
                   </p>
                 </div>
@@ -734,20 +791,23 @@ function Home() {
         </div>
       )}
 
-      <div className="mx-auto grid max-w-[1380px] gap-4 max-[720px]:gap-3">
-        <header className="flex items-center justify-between gap-4 px-1 pt-1 max-[500px]:pt-0.5 max-[720px]:px-0">
+      <div className="mx-auto grid max-w-[1380px] gap-6">
+        <header className="flex items-center justify-between gap-4 px-1 pt-1">
           <button
             type="button"
             onClick={handleLogoClick}
-            className="flex items-center gap-[0.9rem] rounded-lg p-1 -m-1 transition-opacity hover:opacity-70"
+            className="flex items-center gap-[0.9rem] rounded-lg p-1 -m-1 transition-opacity hover:opacity-75"
             aria-label="Deep refresh"
           >
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-[rgba(32,24,17,0.08)] bg-[linear-gradient(135deg,rgba(188,132,66,0.16),rgba(49,67,58,0.08)),rgba(255,255,255,0.56)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_28px_rgba(62,43,23,0.08)]">
+            <span className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-paper-elevated shadow-sm">
               <img
                 src="/logo-mark.svg"
                 alt="chatdump logo"
-                className="h-8 w-8 object-contain"
+                className="h-6 w-6 object-contain"
               />
+            </span>
+            <span className="font-mono text-sm font-bold uppercase tracking-wider text-ink">
+              chatdump
             </span>
           </button>
 
@@ -755,454 +815,479 @@ function Home() {
             <button
               type="button"
               onClick={() => setIsWhyModalOpen(true)}
-              className="w-fit rounded-full border border-line-strong bg-white/72 px-4 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-ink-soft shadow-soft transition-colors hover:bg-white hover:text-ink max-[721px]:hidden"
+              className="rounded-md border border-line bg-paper px-4 py-1.5 text-[0.75rem] font-bold uppercase tracking-wider text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
             >
               Why use chatdump
-            </button>)}
-
+            </button>
+          )}
         </header>
 
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           {!hasResult ? (
-            <section
-              className="panel-shell grid content-start gap-6 p-6 max-[500px]:gap-4 max-[500px]:rounded-[1.35rem] max-[500px]:p-3.5 max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4"
-            >
-              <div className="grid gap-3">
-                <div className="grid gap-3">
-                  <h1 className="text-[clamp(2.8rem,6.2vw,5.3rem)] font-bold leading-[0.95] tracking-[-0.07em] max-[500px]:text-[1.95rem] max-[500px]:leading-[0.96] max-[500px]:tracking-[-0.06em] max-[720px]:text-[clamp(2.15rem,14vw,3.75rem)] max-[720px]:leading-[0.94] max-[720px]:tracking-[-0.08em]">
-                    Turn a public share link into Markdown.
-                  </h1>
-                  <p className="max-w-[36rem] text-[1.02rem] leading-[1.72] text-ink-muted max-[500px]:text-[0.9rem] max-[500px]:leading-[1.6] max-[720px]:max-w-none max-[720px]:text-[0.97rem]">
-                    Paste a supported share link to generate a clean transcript
-                    you can review and copy.
+            <div className="grid gap-6 animate-fade-in">
+              {/* Bento Grid layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Large URL Input Bento Item */}
+                <section className="lg:col-span-2 panel-shell flex flex-col justify-between p-6 md:p-8 hover:-translate-y-0.5 hover:shadow-md transition-all">
+                  <div>
+                    <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] font-extrabold leading-[1.05] tracking-tight mb-3">
+                      Turn public share links into <span className="text-teal font-extrabold">Markdown</span>.
+                    </h1>
+                    <p className="text-[0.95rem] leading-[1.6] text-ink-muted mb-6">
+                      Paste a supported ChatGPT, Claude, Copilot, Gemini, or Grok share URL to extract and export clean, structured Markdown.
+                    </p>
+                  </div>
+                  
+                  <form onSubmit={handleSubmit} className="grid gap-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs uppercase tracking-wider text-ink-soft">
+                        Enter public share link
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="hidden sm:inline-block text-[0.65rem] font-mono px-1.5 py-0.5 rounded border border-line bg-paper text-ink-soft">
+                          Press ⌘K to focus
+                        </span>
+                        {platform && (
+                          <span className={cn("text-[0.65rem] font-mono font-bold uppercase px-1.5 py-0.5 rounded", platform.bg, platform.color)}>
+                            {platform.name} Link Detected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 border border-line-strong focus-within:border-teal bg-paper-inset rounded-lg p-2.5 focus-within:ring-2 focus-within:ring-teal/20 transition-all">
+                      <svg aria-hidden="true" className="h-[1.1rem] w-[1.1rem] text-ink-soft" viewBox="0 0 24 24">
+                        <path d="M14 5h5v5M10 14 19 5M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" className="fill-none stroke-current stroke-[1.9] stroke-linecap-round stroke-linejoin-round" />
+                      </svg>
+                      <input
+                        autoComplete="off"
+                        className="flex-1 bg-transparent border-none outline-none font-mono text-[0.9rem] text-ink placeholder:text-ink-soft"
+                        inputMode="url"
+                        name="url"
+                        placeholder="https://chatgpt.com/share/... or claude.ai/share/..."
+                        ref={urlInputRef}
+                        required
+                        type="url"
+                        value={url}
+                        onChange={(event) => setUrl(event.target.value)}
+                      />
+                      <Button disabled={isPending} type="submit" variant="primary" className="min-h-10 px-4 py-1.5 rounded-md">
+                        <span>{isPending ? 'Converting...' : 'Convert'}</span>
+                      </Button>
+                    </div>
+                  </form>
+                </section>
+
+                {/* History Bento Item */}
+                <section className="panel-shell p-6 flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all">
+                  <div>
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
+                      <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-ink">
+                        Recent History
+                      </h2>
+                      {recentUrls.length > 0 && (
+                        <input
+                          type="text"
+                          placeholder="Search..."
+                          value={searchRecent}
+                          onChange={(e) => setSearchRecent(e.target.value)}
+                          className="w-24 px-1.5 py-0.5 text-[0.7rem] border border-line rounded bg-paper-inset text-ink outline-none"
+                        />
+                      )}
+                    </div>
+                    
+                    {recentUrls.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-line rounded-lg">
+                        <span className="text-2xl mb-2">📋</span>
+                        <p className="text-xs text-ink-soft">No conversions yet.</p>
+                      </div>
+                    ) : filteredRecentUrls.length === 0 ? (
+                      <p className="text-xs text-ink-soft py-4">No matching URLs found.</p>
+                    ) : (
+                      <div className="grid gap-2.5 max-h-[16rem] overflow-y-auto pr-1">
+                        {filteredRecentUrls.map((recentUrl) => {
+                          const recentPlatform = detectPlatform(recentUrl) || { name: 'AI Link', color: 'text-slate-400 border-slate-400/20', bg: 'bg-slate-400/10' }
+                          return (
+                            <div
+                              key={recentUrl}
+                              onClick={() => handleSelectRecentUrl(recentUrl)}
+                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-all hover:border-teal/30"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={cn("text-[0.58rem] font-mono font-bold uppercase px-1.5 py-0.5 rounded", recentPlatform.bg, recentPlatform.color)}>
+                                  {recentPlatform.name}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRemoveRecentUrl(recentUrl, e)}
+                                  className="text-xs text-ink-soft hover:text-ink opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+                                  title="Remove from history"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              <span className="font-mono text-[0.68rem] text-ink-muted truncate">{recentUrl}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="pt-4 border-t border-line mt-4 flex items-center justify-between text-[0.72rem] text-ink-soft">
+                    <span>Clean Markdown</span>
+                    <span>No data stored on server</span>
+                  </div>
+                </section>
+              </div>
+
+              {/* Three Bento Feature Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-ink mb-1">Visual & MD Export</h3>
+                  <p className="text-[0.82rem] leading-relaxed text-ink-muted">
+                    Export complete chat logs into clean, readable Markdown, plain text, or rich responsive preview.
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
+                      <path d="M16 6l-4-4-4 4M12 2v13M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-ink mb-1">Continue Context</h3>
+                  <p className="text-[0.82rem] leading-relaxed text-ink-muted">
+                    Seamlessly transition to a different model (ChatGPT, Claude, Gemini, Copilot, Grok) with one-click share context.
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM9 9h6M9 13h6" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
+                    </svg>
+                  </div>
+                  <h3 className="font-bold text-ink mb-1">Multi-Platform</h3>
+                  <p className="text-[0.82rem] leading-relaxed text-ink-muted">
+                    Universal compatibility: fully supports standard export patterns of all major AI web products.
                   </p>
                 </div>
               </div>
+            </div>
+          ) : null}
 
-              <form
-                className="form-shell grid gap-4 p-4 max-[500px]:gap-3 max-[500px]:rounded-[1.1rem] max-[500px]:p-3 max-[720px]:gap-3.5 max-[720px]:rounded-[1.2rem] max-[720px]:p-3.5"
-                onSubmit={handleSubmit}
-              >
-                <label className="grid gap-[0.6rem]">
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        monoCapsClass,
-                        'text-[0.78rem] tracking-[0.12em] text-ink-soft',
-                      )}
-                    >
-                      Public share link
-                    </span>
-                    <span className="group relative inline-flex">
-                      <button
-                        aria-label="Supported share sources"
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-white/50 text-[0.68rem] font-semibold text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/72 hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
-                        title="Supported sources: ChatGPT, Claude, Copilot, Gemini, and Grok share links."
-                        type="button"
-                      >
-                        ?
-                      </button>
-                      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-[15.5rem] -translate-x-1/2 rounded-[0.85rem] border border-line bg-[rgba(255,251,246,0.98)] px-3 py-2 font-mono text-[0.7rem] leading-[1.5] tracking-[0.01em] text-ink-muted opacity-0 shadow-soft transition duration-[160ms] ease-out group-hover:opacity-100 group-focus-within:opacity-100">
-                        ChatGPT, Claude, Copilot, Gemini, and Grok share links
-                        are supported.
-                      </span>
-                    </span>
-                  </span>
-                  <div className="grid min-h-[3.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-[0.8rem] rounded-[1.1rem] border border-line-strong bg-paper-inset pl-[0.95rem] pr-[0.4rem] transition-[border-color,box-shadow,transform] duration-[180ms] ease-out focus-within:-translate-y-px focus-within:border-[rgba(155,106,51,0.48)] focus-within:shadow-[0_0_0_4px_var(--focus)] max-[500px]:min-h-[3.2rem] max-[500px]:gap-[0.6rem] max-[500px]:rounded-[0.95rem] max-[500px]:pl-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:min-h-[3.45rem] max-[720px]:gap-[0.65rem] max-[720px]:rounded-[1rem] max-[720px]:pl-[0.85rem] max-[720px]:pr-[0.3rem]">
-                    <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
-                      <path
-                        d="M14 5h5v5M10 14 19 5M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"
-                        className="fill-none stroke-[rgba(22,19,16,0.56)] stroke-[1.9] stroke-linecap-round stroke-linejoin-round"
-                      />
-                    </svg>
-                    <input
-                      autoComplete="off"
-                      className="min-h-full min-w-0 bg-transparent py-4 pr-[0.75rem] font-mono text-[0.96rem] text-ink outline-none placeholder:text-ink-soft max-[500px]:py-[0.88rem] max-[500px]:pr-[0.5rem] max-[500px]:text-[0.84rem] max-[500px]:placeholder:text-[0.78rem] max-[720px]:py-[0.95rem] max-[720px]:pr-[0.55rem] max-[720px]:text-[0.88rem] max-[720px]:placeholder:text-[0.82rem]"
-                      inputMode="url"
-                      name="url"
-                      placeholder="https://.../share/..."
-                      ref={urlInputRef}
-                      required
-                      type="url"
-                      value={url}
-                      onChange={(event) => setUrl(event.target.value)}
-                    />
-                  </div>
-                </label>
-
-                <div className="grid gap-3 min-[1100px]:items-center">
-                  <Button disabled={isPending} type="submit" variant="primary">
-                    <span>
-                      {isPending ? 'Generating export...' : 'Generate Markdown'}
-                    </span>
-                    <svg
-                      aria-hidden="true"
-                      className="h-8 w-8 rounded-full bg-white/8 p-[0.45rem] max-[720px]:h-7 max-[720px]:w-7"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M7 12h10M13 6l6 6-6 6"
-                        className="fill-none stroke-current stroke-2 stroke-linecap-round stroke-linejoin-round"
-                      />
-                    </svg>
-                  </Button>
-                </div>
-              </form>
-
-              {recentUrls.length > 0 ? (
-                <div className="grid gap-2">
-                  <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
-                    Recent URLs
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {recentUrls.map((recentUrl) => (
-                      <button
-                        key={recentUrl}
-                        className="group relative inline-flex max-w-[20rem] items-center gap-1.5 rounded-full border border-line bg-white/40 px-3 py-1.5 font-mono text-[0.73rem] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-line-strong hover:bg-white/60 hover:text-ink"
-                        onClick={() => handleSelectRecentUrl(recentUrl)}
-                        type="button"
-                      >
-                        <svg aria-hidden="true" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24">
-                          <path
-                            d="M14 5h5v5M10 14 19 5M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"
-                            className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                          />
-                        </svg>
-                        <span className="truncate">{recentUrl}</span>
-                        <span
-                          aria-label="Remove from recent"
-                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-line bg-white text-[0.6rem] opacity-0 shadow-sm transition-opacity duration-[180ms] ease-out group-hover:opacity-100"
-                          onClick={(e) => handleRemoveRecentUrl(recentUrl, e)}
-                        >
-                          ×
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {isPending ? (
-                <div className="h-[0.42rem] overflow-hidden rounded-full bg-[rgba(23,20,17,0.08)]" aria-label="Processing share link">
-                  <div className="h-full w-[36%] animate-[slide_1.4s_ease-in-out_infinite] rounded-full bg-[linear-gradient(90deg,var(--brass),var(--brass-strong))]" />
-                </div>
-              ) : null}
-            </section>
+          {isPending && !hasResult ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4 border border-line bg-paper-elevated rounded-lg animate-pulse">
+              <span className="font-mono text-xs uppercase tracking-[0.15em] text-ink-soft">Converting share link context...</span>
+              <div className="relative w-64 h-2 bg-paper-inset border border-line rounded-full overflow-hidden">
+                <div className="absolute top-0 bottom-0 w-8 h-full bg-teal rounded-full animate-pipeline" />
+              </div>
+            </div>
           ) : null}
 
           {hasResult ? (
-            <>
-            <section
-              className="panel-shell grid h-[min(32rem,calc(100dvh-3rem))] min-h-[28rem] grid-rows-[auto_1fr] gap-6 p-6 max-[1099px]:h-[min(31rem,calc(100dvh-1.75rem))] max-[1099px]:min-h-[24rem] max-[500px]:h-[calc(100svh-8rem)] max-[500px]:min-h-[26rem] max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4 max-[720px]:max-h-[calc(100svh-5rem)] min-[1100px]:h-[calc(100dvh-8.5rem)]"
-              ref={outputSectionRef}
-            >
-              <div className="flex items-start justify-between gap-4 max-[500px]:gap-3 max-[720px]:flex-col max-[720px]:items-stretch">
-                <div className="grid gap-[0.55rem]">
-                  <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
-                    Output
-                  </p>
-                  <h2 className="text-[clamp(1.55rem,3vw,2.2rem)] font-semibold leading-[1.02] tracking-[-0.05em] max-[500px]:text-[1.35rem] max-[500px]:tracking-[-0.04em] max-[720px]:text-[clamp(1.4rem,8vw,1.9rem)]">
-                    Markdown export ready
-                  </h2>
-                  <p className="text-[1rem] leading-[1.65] text-ink-muted max-[500px]:text-[0.9rem] max-[500px]:leading-[1.55] max-[720px]:text-[0.96rem]">
-                    Review the generated transcript, then copy the Markdown
-                    directly into your workflow.
-                  </p>
-                </div>
-
-                <div className="grid w-full gap-3 max-[720px]:justify-items-stretch min-[721px]:min-w-fit min-[721px]:justify-items-end">
-                  <div
-                    className="flex flex-wrap gap-[0.55rem] max-[720px]:justify-start min-[721px]:justify-end"
-                    aria-label="Export metadata"
-                  >
-                    {lineCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
-                        {lineCount} lines
-                      </span>
-                    ) : null}
-                    {characterCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
-                        {characterCount} chars
-                      </span>
-                    ) : null}
-                    {warningCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-[rgba(156,118,45,0.18)] bg-[rgba(156,118,45,0.12)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-warning-ink max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
-                        {warningCount} warning{warningCount > 1 ? 's' : ''}
-                      </span>
-                    ) : null}
-                    <button
-                      aria-label="Edit URL"
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-white/40 px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-line-strong hover:bg-white/60 hover:text-ink max-[720px]:hidden"
-                      onClick={handleEditUrl}
-                    >
-                      <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
-                        <path
-                          d="M19 12H5M11 6l-6 6 6 6"
-                          className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                        />
-                      </svg>
-                      Edit URL
-                    </button>
-                    <button
-                      aria-label="Edit URL"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/68 hover:text-ink min-[721px]:hidden"
-                      onClick={handleEditUrl}
-                    >
-                      <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
-                        <path
-                          d="M15 18l-6-6 6-6M19 12H9"
-                          className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-2 max-[500px]:gap-1.5 max-[720px]:justify-between">
-                    <div className="inline-flex rounded-full border border-line-strong bg-white/72 p-0.5 shadow-soft max-[720px]:order-2">
+            <div className="grid gap-6 animate-fade-in">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Exported Chat Content (Occupies 8/12 or 9/12 cols) */}
+                <section
+                  className="lg:col-span-8 xl:col-span-9 panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4"
+                  ref={outputSectionRef}
+                >
+                  {/* Sticky floating toolbar */}
+                  <div className="sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-paper-elevated/85 backdrop-blur-md border border-line p-3 rounded-lg shadow-sm">
+                    <div className="flex items-center gap-3">
                       <button
-                        aria-label="Markdown"
-                        aria-pressed={!isRenderedPreview && !isPlainText}
-                        className={cn(
-                          'inline-flex h-[2.6rem] items-center gap-1.5 rounded-l-full border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
-                          !isRenderedPreview && !isPlainText
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
-                        )}
-                        onClick={() => {
-                          setIsPlainText(false)
-                          if (isRenderedPreview) setOutputMode('markdown')
-                        }}
+                        onClick={handleEditUrl}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+                        aria-label="Edit URL"
                       >
                         <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
-                          <path
-                            d="M3 7h18M3 12h12M3 17h18"
-                            className="fill-none stroke-current stroke-[1.8] stroke-linecap-round"
-                          />
+                          <path d="M19 12H5M11 6l-6 6 6 6" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
                         </svg>
-                        <span className="hidden sm:inline">Markdown</span>
+                        Back
                       </button>
-
-                      <button
-                        aria-label="Preview"
-                        aria-pressed={isRenderedPreview}
-                        className={cn(
-                          'inline-flex h-[2.6rem] items-center gap-1.5 border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
-                          isRenderedPreview
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
-                        )}
-                        onClick={() => {
-                          setIsPlainText(false)
-                          if (!isRenderedPreview) setOutputMode('preview')
-                        }}
-                      >
-                        <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
-                          <path
-                            d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"
-                            className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                          />
-                        </svg>
-                        <span className="hidden sm:inline">Preview</span>
-                      </button>
-
-                      <button
-                        aria-label="Plain text"
-                        aria-pressed={isPlainText}
-                        className={cn(
-                          'inline-flex h-[2.6rem] items-center gap-1.5 rounded-r-full border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
-                          isPlainText
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
-                        )}
-                        onClick={() => setIsPlainText((v) => !v)}
-                      >
-                        <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
-                          <path
-                            d="M4 7V4h16v3M9 20h6M12 4v16"
-                            className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                          />
-                        </svg>
-                        <span className="hidden sm:inline">Plain</span>
-                      </button>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-ink uppercase">Export Ready</span>
+                        <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/20">
+                          {lineCount} L • {characterCount} C
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 max-[720px]:order-1">
-                      <ShareDropdown
-                        markdown={displayMarkdown}
-                        isOpen={isShareDropdownOpen}
-                        onOpenChange={setIsShareDropdownOpen}
-                        onOpenProvider={handleOpenProvider}
-                      />
+                    {/* Tabs */}
+                    <div className="flex border border-line bg-paper-inset p-0.5 rounded-lg">
+                      {(['preview', 'markdown', 'plain'] as const).map(tabId => (
+                        <button
+                          key={tabId}
+                          type="button"
+                          onClick={() => setOutputMode(tabId)}
+                          className={cn(
+                            "px-2.5 py-1 text-[0.68rem] font-mono font-semibold uppercase tracking-wider rounded-md transition-all",
+                            outputMode === tabId
+                              ? "bg-paper-elevated text-ink shadow-sm border border-line-strong"
+                              : "text-ink-soft hover:text-ink"
+                          )}
+                        >
+                          {tabId === 'preview' ? 'Preview' : tabId === 'markdown' ? 'Markdown' : 'Plain Text'}
+                        </button>
+                      ))}
+                    </div>
 
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
                       <Button
                         aria-label={copyLabel}
-                        className="max-[500px]:min-h-[2.8rem] max-[500px]:w-11 max-[500px]:justify-center max-[500px]:gap-0 max-[500px]:px-0 max-[500px]:pl-0 max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
+                        className="min-h-8 h-8 px-3 rounded-md"
                         onClick={handleCopy}
                       >
                         {copyState === 'copied' ? (
-                          <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
-                            <path
-                              d="M20 6L9 17l-5-5"
-                              className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
-                            />
+                          <svg aria-hidden="true" className="h-[0.95rem] w-[0.95rem] text-teal" viewBox="0 0 24 24">
+                            <path d="M20 6L9 17l-5-5" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
                           </svg>
                         ) : (
-                          <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
-                            <path
-                              d="M9 9h10v12H9zM5 3h10v4H9v10H5z"
-                              className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                            />
+                          <svg aria-hidden="true" className="h-[0.95rem] w-[0.95rem]" viewBox="0 0 24 24">
+                            <path d="M9 9h10v12H9zM5 3h10v4H9v10H5z" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
                           </svg>
                         )}
-                        <span className="max-[720px]:hidden">{copyLabel}</span>
+                        <span className="text-xs">{copyLabel}</span>
                       </Button>
 
                       <Button
                         aria-label="Download .md"
-                        className="max-[500px]:min-h-[2.8rem] max-[500px]:w-11 max-[500px]:justify-center max-[500px]:gap-0 max-[500px]:px-0 max-[500px]:pl-0 max-[720px]:min-h-11 max-[720px]:w-11 max-[720px]:justify-center max-[720px]:gap-0 max-[720px]:px-0 max-[720px]:pl-0"
+                        className="min-h-8 h-8 px-3 rounded-md"
                         onClick={handleDownload}
                       >
-                        <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
-                          <path
-                            d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"
-                            className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                          />
+                        <svg aria-hidden="true" className="h-[0.95rem] w-[0.95rem]" viewBox="0 0 24 24">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round" />
                         </svg>
-                        <span className="max-[720px]:hidden">.md</span>
+                        <span className="text-xs">.md</span>
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* View Panes */}
+                  <div className="flex-1 min-h-0 overflow-hidden relative">
+                    <div className="h-full">
+                      {/* Left Pane (Preview) */}
+                      {outputMode === 'preview' && (
+                        <article
+                          className="output-surface markdown-preview h-full overflow-auto leading-[1.68] text-ink"
+                          ref={(node) => {
+                            outputBodyRef.current = node
+                          }}
+                          tabIndex={0}
+                        >
+                          {previewSegments.map((segment, index) => {
+                            if (segment.kind === 'table') {
+                              const tableMd = [
+                                `| ${segment.headers.join(' | ')} |`,
+                                `| ${segment.headers.map(() => '---').join(' | ')} |`,
+                                ...segment.rows.map((row) => `| ${row.join(' | ')} |`),
+                              ].join('\n')
+
+                              return (
+                                <div className="table-scroll-wrapper" key={`table-${index}`}>
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      table: ({ node: _node, ...props }) => (
+                                        <table {...props} />
+                                      ),
+                                    }}
+                                  >
+                                    {tableMd}
+                                  </ReactMarkdown>
+                                </div>
+                              )
+                            }
+
+                            return (
+                              <ReactMarkdown
+                                key={`markdown-${index}`}
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                                components={{
+                                  a: ({ node: _node, ...props }) => (
+                                    <a {...props} rel="noreferrer" target="_blank" />
+                                  ),
+                                  img: ({ node: _node, ...props }) => (
+                                    <PreviewImage {...props} />
+                                  ),
+                                  pre: ({ node: _node, children, ...props }) => {
+                                    const getTextContent = (child: React.ReactNode): string => {
+                                      if (typeof child === 'string') return child
+                                      if (typeof child === 'number') return String(child)
+                                      if (!child) return ''
+                                      if (Array.isArray(child)) return child.map(getTextContent).join('')
+                                      if (typeof child === 'object' && child !== null && 'props' in child) {
+                                        const el = child as unknown as { props: { children?: React.ReactNode } }
+                                        return getTextContent(el.props.children)
+                                      }
+                                      return ''
+                                    }
+
+                                    const textContent = getTextContent(children)
+                                    if (!textContent.trim()) return null
+
+                                    let lang: string | undefined
+                                    const firstChild = Array.isArray(children) ? children[0] : children
+                                    if (
+                                      firstChild &&
+                                      typeof firstChild === 'object' &&
+                                      'props' in firstChild
+                                    ) {
+                                      const el = firstChild as unknown as { props: { className?: string } }
+                                      const cls = el.props.className
+                                      if (typeof cls === 'string') {
+                                        const match = cls.match(/language-(\S+)/)
+                                        if (match) lang = match[1]
+                                      }
+                                    }
+
+                                    return (
+                                      <div className="code-block-wrapper">
+                                        {lang ? (
+                                          <span className="code-block-lang">{lang}</span>
+                                        ) : null}
+                                        <pre {...props}>{children}</pre>
+                                      </div>
+                                    )
+                                  },
+                                  hr: ({ node: _node, ...props }) => (
+                                    <hr {...props} />
+                                  ),
+                                }}
+                              >
+                                {segment.content}
+                              </ReactMarkdown>
+                            )
+                          })}
+                        </article>
+                      )}
+                      
+                      {/* Right Pane (Markdown / Plain) */}
+                      {(outputMode === 'markdown' || outputMode === 'plain') && (
+                        <pre
+                          className="output-surface m-0 h-full overflow-auto whitespace-pre-wrap font-mono text-[0.88rem] leading-[1.65] text-ink"
+                          ref={(node) => {
+                            outputBodyRef.current = node
+                          }}
+                          tabIndex={0}
+                        >
+                          {displayMarkdown}
+                        </pre>
+                      )}
+                    </div>
+
+                    {/* Animated copy success celebration overlay */}
+                    {copyState === 'copied' && (
+                      <div className="absolute inset-0 bg-teal/5 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
+                        <div className="bg-paper border border-teal text-teal text-xs font-mono font-bold px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+                          <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+                            <path d="M20 6L9 17l-5-5" className="fill-none stroke-current stroke-[2.5] stroke-linecap-round stroke-linejoin-round" />
+                          </svg>
+                          SUCCESSFULLY COPIED TO CLIPBOARD! 🎉
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Right Column: Advanced Options (Occupies 3/12 or 4/12 cols) */}
+                <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6 lg:sticky lg:top-4 h-auto">
+                  {/* Advanced Options panel */}
+                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated shadow-lg overflow-hidden flex flex-col animate-fade-in">
+                    <div className="flex items-center gap-3 border-b border-border-contrast px-5 py-3.5 bg-paper-solid">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.85rem]">
+                        <svg className="h-4.5 w-4.5 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                      </span>
+                      <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
+                        Advanced Options
+                      </span>
+                    </div>
+                    <div className="p-5 bg-paper-solid flex flex-col gap-4">
+                      {/* Metadata Header option */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={includeMetadata}
+                          onChange={(e) => setIncludeMetadata(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Include Metadata Header</span>
+                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
+                            Add the source URL, export date, and chat creator to the top of the file.
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Include System Messages option */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={includeSystemMessages}
+                          onChange={(e) => setIncludeSystemMessages(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Include System Prompts</span>
+                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
+                            Export any internal developer instructions or system roles from the session.
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Remove Emojis option */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={removeEmojis}
+                          onChange={(e) => setRemoveEmojis(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Clean Emojis</span>
+                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
+                            Strip all graphical emojis from the output text for a cleaner documentation format.
+                          </span>
+                        </div>
+                      </label>
+
+                      {/* Clean HTML option */}
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={cleanHtml}
+                          onChange={(e) => setCleanHtml(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Strip HTML Tags</span>
+                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
+                            Remove raw HTML tags and comments to leave only pure Markdown syntax.
+                          </span>
+                        </div>
+                      </label>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {isRenderedPreview && !isPlainText ? (
-                <article
-                  className="output-surface markdown-preview h-full leading-[1.68] text-ink max-[720px]:text-[0.95rem]"
-                  ref={(node) => {
-                    outputBodyRef.current = node
-                  }}
-                  tabIndex={0}
-                >
-                  {previewSegments.map((segment, index) => {
-                    if (segment.kind === 'table') {
-                      const tableMd = [
-                        `| ${segment.headers.join(' | ')} |`,
-                        `| ${segment.headers.map(() => '---').join(' | ')} |`,
-                        ...segment.rows.map((row) => `| ${row.join(' | ')} |`),
-                      ].join('\n')
-
-                      return (
-                        <div className="table-scroll-wrapper" key={`table-${index}`}>
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              table: ({ node: _node, ...props }) => (
-                                <table {...props} />
-                              ),
-                            }}
-                          >
-                            {tableMd}
-                          </ReactMarkdown>
-                        </div>
-                      )
-                    }
-
-                    return (
-                      <ReactMarkdown
-                        key={`markdown-${index}`}
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw, rehypeHighlight]}
-                        components={{
-                          a: ({ node: _node, ...props }) => (
-                            <a {...props} rel="noreferrer" target="_blank" />
-                          ),
-                          img: ({ node: _node, ...props }) => (
-                            <PreviewImage {...props} />
-                          ),
-                          // Skip rendering empty code blocks (show as invisible
-                          // dark bars otherwise) and show a language label
-                          pre: ({ node: _node, children, ...props }) => {
-                            // Extract text from React children tree
-                            const getTextContent = (child: React.ReactNode): string => {
-                              if (typeof child === 'string') return child
-                              if (typeof child === 'number') return String(child)
-                              if (!child) return ''
-                              if (Array.isArray(child)) return child.map(getTextContent).join('')
-                              if (typeof child === 'object' && child !== null && 'props' in child) {
-                                const el = child as unknown as { props: { children?: React.ReactNode } }
-                                return getTextContent(el.props.children)
-                              }
-                              return ''
-                            }
-
-                            const textContent = getTextContent(children)
-
-                            // Don't render empty code blocks
-                            if (!textContent.trim()) {
-                              return null
-                            }
-
-                            // Try to extract language from the code element's className
-                            let lang: string | undefined
-                            const firstChild = Array.isArray(children) ? children[0] : children
-                            if (
-                              firstChild &&
-                              typeof firstChild === 'object' &&
-                              'props' in firstChild
-                            ) {
-                              const el = firstChild as unknown as { props: { className?: string } }
-                              const cls = el.props.className
-                              if (typeof cls === 'string') {
-                                const match = cls.match(/language-(\S+)/)
-                                if (match) lang = match[1]
-                              }
-                            }
-
-                            return (
-                              <div className="code-block-wrapper">
-                                {lang ? (
-                                  <span className="code-block-lang">{lang}</span>
-                                ) : null}
-                                <pre {...props}>{children}</pre>
-                              </div>
-                            )
-                          },
-                          // Ensure HR renders as a proper themed element
-                          hr: ({ node: _node, ...props }) => (
-                            <hr {...props} />
-                          ),
-                        }}
-                      >
-                        {segment.content}
-                      </ReactMarkdown>
-                    )
-                  })}
-                </article>
-              ) : isPlainText ? (
-                <pre
-                  className="output-surface m-0 h-full whitespace-pre-wrap font-mono text-[0.92rem] leading-[1.72] text-ink max-[720px]:text-[0.84rem]"
-                  ref={(node) => {
-                    outputBodyRef.current = node
-                  }}
-                  tabIndex={0}
-                >
-                  {displayMarkdown}
-                </pre>
-              ) : (
-                <pre
-                  className="output-surface m-0 h-full whitespace-pre-wrap font-mono text-[0.92rem] leading-[1.72] text-ink max-[720px]:text-[0.84rem]"
-                  ref={(node) => {
-                    outputBodyRef.current = node
-                  }}
-                  tabIndex={0}
-                >
-                  {deferredMarkdown}
-                </pre>
-              )}
-            </section>
-
-              <ChatContinuation markdown={deferredMarkdown} />
-            </>
+              {/* Bottom: Continuation Chat (collapsible as before) */}
+              <ChatContinuation
+                markdown={deferredMarkdown}
+              />
+            </div>
           ) : null}
         </div>
       </div>

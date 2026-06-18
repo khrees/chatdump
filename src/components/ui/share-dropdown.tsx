@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { shareProviders, type ShareProvider } from '../../lib/providers'
+import { cn } from '../../lib/cn'
 
 interface ShareDropdownProps {
   markdown: string | null
@@ -60,7 +61,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
     }
   }
 
-  // Fallback using document.execCommand
   try {
     const textArea = document.createElement('textarea')
     textArea.value = text
@@ -100,27 +100,14 @@ export function ShareDropdown({
   useEffect(() => {
     if (!isOpen) return
 
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
-      ) {
-        onOpenChange(false)
-      }
-    }
-
     function handleEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         onOpenChange(false)
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current)
@@ -153,7 +140,6 @@ export function ShareDropdown({
     if (!markdown) return
     setClickedProviderId(provider.id)
     
-    // Always copy prompt context to clipboard as it's the most reliable way
     const copied = await copyToClipboard(promptText)
     if (copied) {
       setCopyStatus('success')
@@ -171,7 +157,6 @@ export function ShareDropdown({
       }, 3500)
     }
 
-    // Smart Share logic: If URL payload is too large, open clean URL so they can paste
     if (isTooLong) {
       const baseUrl = getBaseProviderUrl(provider.id)
       onOpenProvider(baseUrl)
@@ -182,12 +167,12 @@ export function ShareDropdown({
   }
 
   return (
-    <div className="relative">
+    <>
       <button
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(!isOpen)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-white max-[500px]:min-h-[2.8rem] max-[500px]:px-[0.75rem] max-[500px]:pl-[0.7rem] max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
+        className="inline-flex items-center gap-1.5 rounded-md border border-line-strong bg-paper-elevated px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-paper-raised max-[500px]:min-h-[2.8rem] max-[500px]:px-[0.75rem] max-[500px]:pl-[0.7rem] max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
@@ -204,7 +189,7 @@ export function ShareDropdown({
         <span className="max-[720px]:hidden">Share</span>
         <svg
           aria-hidden="true"
-          className="h-3 w-3 text-ink-soft transition-transform ui-open:rotate-180 max-[720px]:hidden"
+          className="h-3 w-3 text-ink-soft transition-transform max-[720px]:hidden"
           viewBox="0 0 24 24"
           style={{ transform: isOpen ? 'rotate(180deg)' : undefined }}
         >
@@ -217,126 +202,172 @@ export function ShareDropdown({
 
       {isOpen && (
         <div
-          ref={dropdownRef}
-          className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-line bg-white p-3 shadow-[0_8px_24px_rgba(23,20,17,0.12)]"
-          role="menu"
-          aria-orientation="vertical"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs"
+          onClick={() => onOpenChange(false)}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-ink">
-              Share Context
-            </span>
+          <div
+            ref={dropdownRef}
+            className="w-full max-w-xl rounded-xl border border-border-contrast bg-paper-solid p-6 shadow-2xl max-h-[90vh] overflow-y-auto animate-slide-up relative"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="mb-4 flex items-center justify-between pb-4 border-b border-border-contrast">
+              <span className="text-sm font-extrabold uppercase tracking-wider text-ink">
+                Share Conversation Context
+              </span>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-contrast bg-paper-solid text-ink-soft hover:text-ink hover:bg-paper-solid-inset transition-colors"
+                aria-label="Close"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    className="fill-none stroke-current stroke-[2] stroke-linecap-round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-xs text-ink-muted leading-relaxed mb-4">
+              Continue your work in another model! We will automatically package this conversation history as context, copy it to your clipboard, and launch the selected AI chat assistant.
+            </p>
+
+            {/* Prompt preview section */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[0.7rem] font-mono font-bold uppercase tracking-wider text-ink-soft">
+                  Context Prompt Preview
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded px-1.5 py-0.5 text-[0.65rem] font-mono font-bold uppercase border",
+                    isTooLong
+                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                      : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                  )}
+                >
+                  {isTooLong ? 'Copy & Manual Paste' : 'Direct URL Pre-fill'}
+                </span>
+              </div>
+              <div className="relative rounded-lg border border-border-contrast bg-paper-solid-inset p-3 max-h-36 overflow-y-auto">
+                <pre className="font-mono text-xs text-ink-muted whitespace-pre-wrap leading-relaxed">
+                  {promptText}
+                </pre>
+                <div className="absolute bottom-2 right-2">
+                  <span className="text-[0.62rem] font-mono bg-paper-solid border border-border-contrast rounded px-1.5 py-0.5 text-ink-soft">
+                    {promptLength.toLocaleString()} chars
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <button
               type="button"
-              onClick={() => onOpenChange(false)}
-              className="rounded p-1 text-ink-soft transition-colors hover:bg-line hover:text-ink"
-              aria-label="Close"
+              onClick={handleCopy}
+              disabled={copyStatus === 'success' && clickedProviderId === 'manual-copy'}
+              className={cn(
+                "mb-5 w-full rounded-lg py-2.5 text-xs font-mono font-bold uppercase tracking-wider transition-colors border",
+                copyStatus === 'success' && clickedProviderId === 'manual-copy'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                  : copyStatus === 'error' && clickedProviderId === 'manual-copy'
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
+                    : 'bg-teal text-white border-teal/10 hover:bg-teal-hover shadow-sm'
+              )}
             >
-              <svg
-                aria-hidden="true"
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M18 6L6 18M6 6l12 12"
-                  className="fill-none stroke-current stroke-[2] stroke-linecap-round"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div className="mb-2.5 flex items-center justify-between text-[0.7rem] border-b border-line pb-2">
-            <span className="text-ink-soft font-medium">
-              Size: <strong className="font-semibold text-ink">{promptLength.toLocaleString()} chars</strong>
-            </span>
-            <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wide uppercase border ${
-                isTooLong
-                  ? 'bg-amber-50 text-amber-700 border-amber-200/60'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-              }`}
-            >
-              {isTooLong ? 'Copy & Paste' : 'Pre-fills URL'}
-            </span>
-          </div>
-
-          <p className="mb-3 text-[0.72rem] leading-normal text-ink-soft">
-            {isTooLong
-              ? 'This transcript exceeds safe URL limits. We will copy it to your clipboard and open the chat provider so you can paste it (Cmd+V).'
-              : 'This transcript is short. We will try to pre-fill the input, and copy it to your clipboard as a backup.'}
-          </p>
-
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={copyStatus === 'success' && clickedProviderId === 'manual-copy'}
-            className={`mb-3 w-full rounded-lg border px-3 py-2 text-[0.82rem] font-semibold transition-colors ${
-              copyStatus === 'success' && clickedProviderId === 'manual-copy'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              {copyStatus === 'success' && clickedProviderId === 'manual-copy'
+                ? '✓ Context Copied!'
                 : copyStatus === 'error' && clickedProviderId === 'manual-copy'
-                  ? 'bg-rose-50 border-rose-200 text-rose-600'
-                  : 'bg-[linear-gradient(135deg,#292520,#171411)] text-[#f5eee5] border-transparent shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:opacity-90'
-            }`}
-          >
-            {copyStatus === 'success' && clickedProviderId === 'manual-copy'
-              ? '✓ Prompt Copied!'
-              : copyStatus === 'error' && clickedProviderId === 'manual-copy'
-                ? 'Copy failed - try again'
-                : 'Copy Prompt to Clipboard'}
-          </button>
+                  ? 'Copy failed - try again'
+                  : 'Copy Context Prompt to Clipboard'}
+            </button>
 
-          <div className="border-t border-line pt-2">
-            <span className="mb-1.5 block text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-ink-soft">
-              Copy & Open in...
+            <span className="mb-2.5 block text-[0.7rem] font-mono font-bold uppercase tracking-wider text-ink-soft">
+              Select platform to open
             </span>
-            <div className="space-y-1">
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {shareProviders.map((provider) => {
                 const isClicked = clickedProviderId === provider.id && copyStatus === 'success'
                 const isError = clickedProviderId === provider.id && copyStatus === 'error'
+                
+                let brandColorClass = 'hover:border-teal/50 border-border-contrast bg-paper-solid-elevated'
+                let brandBadge = 'bg-teal/10 text-teal border border-teal/20'
+                if (provider.id === 'chatgpt') {
+                  brandColorClass = 'hover:border-emerald-500/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                } else if (provider.id === 'claude') {
+                  brandColorClass = 'hover:border-amber-500/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                } else if (provider.id === 'gemini') {
+                  brandColorClass = 'hover:border-indigo-500/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/30'
+                } else if (provider.id === 'copilot') {
+                  brandColorClass = 'hover:border-cyan-500/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/30'
+                } else if (provider.id === 'grok') {
+                  brandColorClass = 'hover:border-slate-800/50 dark:hover:border-slate-200/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
+                }
 
                 return (
                   <div
                     key={provider.id}
-                    className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-line"
+                    className={cn(
+                      "group relative flex flex-col justify-between p-3.5 rounded-lg border transition-all hover:bg-paper-solid hover:shadow-sm",
+                      brandColorClass
+                    )}
                   >
-                    <img
-                      src={provider.faviconUrl}
-                      alt=""
-                      className="h-4 w-4 shrink-0 rounded"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none'
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[0.82rem] font-medium text-ink">
-                        {provider.name}
-                      </span>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <img
+                        src={provider.faviconUrl}
+                        alt=""
+                        className="h-5 w-5 shrink-0 rounded"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                      <span className="font-bold text-sm text-ink">{provider.name}</span>
                     </div>
+
+                    <p className="text-[0.68rem] text-ink-muted leading-relaxed mb-3">
+                      {isTooLong 
+                        ? 'Prompts >1k chars must be manually pasted after opening.'
+                        : 'Automatically injects conversation context into input.'
+                      }
+                    </p>
+
                     <button
                       type="button"
                       onClick={() => handleOpen(provider)}
-                      className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.04em] shadow-sm transition-colors ${
+                      className={cn(
+                        "w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[0.72rem] font-mono font-bold uppercase tracking-wider transition-colors",
                         isClicked
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
+                          ? "bg-emerald-600 text-white border-transparent"
                           : isError
-                            ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
-                            : 'bg-white border-line-strong text-ink hover:bg-line'
-                      }`}
+                            ? "bg-rose-600 text-white border-transparent"
+                            : "bg-paper-solid text-ink hover:bg-paper-solid-inset border border-border-contrast"
+                      )}
                     >
-                      {isClicked ? 'Copied' : 'Open'}
+                      {isClicked ? '✓ Copied' : 'Open'}
                       {!isClicked && (
-                        <svg
-                          aria-hidden="true"
-                          className="h-3 w-3"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M7 17L17 7M17 7H7M17 7v10"
-                            className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
-                          />
+                        <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 24 24">
+                          <path d="M7 17L17 7M17 7H7M17 7v10" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
                         </svg>
                       )}
                     </button>
+                    
+                    <div className="absolute right-3 top-3">
+                      <span className={cn("text-[0.58rem] font-mono font-bold uppercase px-1.5 py-0.5 rounded", brandBadge)}>
+                        Online
+                      </span>
+                    </div>
                   </div>
                 )
               })}
@@ -344,6 +375,6 @@ export function ShareDropdown({
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

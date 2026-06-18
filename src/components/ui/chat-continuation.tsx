@@ -11,7 +11,7 @@ const CHAT_SETTINGS_KEY = 'chatdump.chat-settings.v1'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ChatProvider = 'openai' | 'anthropic' | 'google' | 'grok' | 'mistral' | 'ollama' | 'lmstudio' | 'custom'
+type ChatProvider = 'openai' | 'anthropic' | 'google' | 'grok' | 'mistral' | 'ollama' | 'lmstudio' | 'custom' | 'webapp'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -39,6 +39,7 @@ interface ChatSettings {
   ollama: ProviderSettings
   lmstudio: ProviderSettings
   custom: ProviderSettings
+  webapp: ProviderSettings
   selectedProvider: ChatProvider
   selectedModel: string
 }
@@ -48,6 +49,12 @@ interface ContinuationMessage {
   content: string
   model?: string
   provider?: ChatProvider
+}
+
+interface WebAppOption {
+  id: string
+  name: string
+  url: string
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -61,8 +68,9 @@ const DEFAULT_SETTINGS: ChatSettings = {
   ollama: { apiKey: '', baseUrl: 'http://localhost:11434', enabled: false },
   lmstudio: { apiKey: '', baseUrl: 'http://localhost:1234', enabled: false },
   custom: { apiKey: '', baseUrl: '', enabled: false },
-  selectedProvider: 'ollama',
-  selectedModel: '',
+  webapp: { apiKey: '', baseUrl: '', enabled: true },
+  selectedProvider: 'webapp',
+  selectedModel: 'chatgpt-web',
 }
 
 const CLOUD_MODELS: ModelOption[] = [
@@ -80,6 +88,14 @@ const CLOUD_MODELS: ModelOption[] = [
   { id: 'mistral-small-latest', name: 'Mistral Small', provider: 'mistral' },
 ]
 
+const WEB_APPS: WebAppOption[] = [
+  { id: 'chatgpt-web', name: 'ChatGPT Web App', url: 'https://chatgpt.com/' },
+  { id: 'claude-web', name: 'Claude Web App', url: 'https://claude.ai/new' },
+  { id: 'gemini-web', name: 'Gemini Web App', url: 'https://gemini.google.com/' },
+  { id: 'grok-web', name: 'Grok Web App', url: 'https://grok.com/' },
+  { id: 'copilot-web', name: 'Copilot Web App', url: 'https://copilot.microsoft.com/' },
+]
+
 const PROVIDER_LABELS: Record<ChatProvider, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
@@ -89,9 +105,43 @@ const PROVIDER_LABELS: Record<ChatProvider, string> = {
   ollama: 'Ollama',
   lmstudio: 'LM Studio',
   custom: 'Custom',
+  webapp: 'Web App',
 }
 
 const monoCapsClass = 'font-mono uppercase tracking-[0.14em]'
+
+function wrapMarkdown(text: string): string {
+  return `Taking this conversation history into context, answer the next questions \n\n${text}`
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (err) {
+      console.warn('Clipboard API failed, using fallback:', err)
+    }
+  }
+
+  try {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.top = '0'
+    textArea.style.left = '0'
+    textArea.style.position = 'fixed'
+    textArea.style.opacity = '0'
+    document.body.appendChild(textArea)
+    textArea.focus()
+    textArea.select()
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textArea)
+    return successful
+  } catch (err) {
+    console.error('Fallback copy failed:', err)
+    return false
+  }
+}
 
 // ─── Settings persistence ────────────────────────────────────────────────────
 
@@ -117,6 +167,33 @@ function saveSettings(settings: ChatSettings): void {
 
 // ─── Streaming helpers ───────────────────────────────────────────────────────
 
+async function parseErrorResponse(response: Response, defaultPrefix: string): Promise<Error> {
+  const text = await response.text().catch(() => '')
+  let errorMessage = ''
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed.message) {
+      errorMessage = parsed.message
+    } else if (parsed.error) {
+      if (typeof parsed.error === 'string') {
+        errorMessage = parsed.error
+      } else if (parsed.error.message) {
+        errorMessage = parsed.error.message
+      } else {
+        errorMessage = JSON.stringify(parsed.error)
+      }
+    }
+  } catch {
+    // Keep raw text if not JSON
+  }
+
+  if (!errorMessage) {
+    errorMessage = text.slice(0, 300) || `HTTP error ${response.status}`
+  }
+
+  return new Error(`${defaultPrefix}: ${errorMessage}`)
+}
+
 async function* streamOpenAICompat(
   url: string,
   body: Record<string, unknown>,
@@ -131,8 +208,7 @@ async function* streamOpenAICompat(
   })
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`API error ${response.status}: ${text.slice(0, 200)}`)
+    throw await parseErrorResponse(response, 'API Error')
   }
 
   const reader = response.body?.getReader()
@@ -180,8 +256,7 @@ async function* streamOllama(
   })
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`Ollama error ${response.status}: ${text.slice(0, 200)}`)
+    throw await parseErrorResponse(response, 'Ollama Error')
   }
 
   const reader = response.body?.getReader()
@@ -243,8 +318,7 @@ async function* streamGoogleAI(
   })
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`Google AI error ${response.status}: ${text.slice(0, 200)}`)
+    throw await parseErrorResponse(response, 'Google AI Error')
   }
 
   const reader = response.body?.getReader()
@@ -332,6 +406,10 @@ async function* streamChatCompletion(
       )
       return
     }
+
+    case 'webapp': {
+      throw new Error('Web Apps do not support direct API streaming.')
+    }
   }
 }
 
@@ -399,12 +477,14 @@ function conversationMarkdownToMessages(markdown: string): ChatMessage[] {
 
 interface ChatContinuationProps {
   markdown: string
+  disableCollapse?: boolean
+  className?: string
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ChatContinuation({ markdown }: ChatContinuationProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+export function ChatContinuation({ markdown, disableCollapse = false, className }: ChatContinuationProps) {
+  const [isExpanded, setIsExpanded] = useState(disableCollapse)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS)
   const [continuationMessages, setContinuationMessages] = useState<ContinuationMessage[]>([])
@@ -412,6 +492,15 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  // Auto-dismiss error toast after 7 seconds
+  useEffect(() => {
+    if (!error) return
+    const timer = setTimeout(() => {
+      setError(null)
+    }, 7000)
+    return () => clearTimeout(timer)
+  }, [error])
   const [localModels, setLocalModels] = useState<ModelOption[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<Record<ChatProvider, 'idle' | 'testing' | 'ok' | 'fail'>>({
@@ -423,6 +512,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     ollama: 'idle',
     lmstudio: 'idle',
     custom: 'idle',
+    webapp: 'idle',
   })
   const [activeCloudEdit, setActiveCloudEdit] = useState<'openai' | 'anthropic' | 'google' | 'grok' | 'mistral'>('openai')
   const [activeLocalEdit, setActiveLocalEdit] = useState<'ollama' | 'lmstudio' | 'custom'>('ollama')
@@ -441,6 +531,13 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Synchronize isExpanded with disableCollapse
+  useEffect(() => {
+    if (disableCollapse) {
+      setIsExpanded(true)
+    }
+  }, [disableCollapse])
 
   // Load settings on mount
   useEffect(() => {
@@ -478,12 +575,16 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     settings.selectedProvider === 'lmstudio' ||
     settings.selectedProvider === 'custom'
       ? localModels.filter((m) => m.provider === settings.selectedProvider)
+      : settings.selectedProvider === 'webapp'
+      ? WEB_APPS.map(w => ({ id: w.id, name: w.name, provider: 'webapp' }))
       : CLOUD_MODELS.filter((m) => m.provider === settings.selectedProvider)
 
   const selectedModelName =
-    availableModels.find((m) => m.id === settings.selectedModel)?.name ??
-    settings.selectedModel ??
-    'No model selected'
+    settings.selectedProvider === 'webapp'
+      ? WEB_APPS.find((w) => w.id === settings.selectedModel)?.name ?? settings.selectedModel
+      : availableModels.find((m) => m.id === settings.selectedModel)?.name ??
+        settings.selectedModel ??
+        'No model selected'
 
   // Fetch local models
   async function handleFetchModels(provider: ChatProvider) {
@@ -529,6 +630,15 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     if (!trimmed || isStreaming) return
     if (!settings.selectedModel) {
       setError('Select a model first. Open settings with the ⚙ button.')
+      return
+    }
+
+    const provider = settings.selectedProvider
+    const providerSettings = settings[provider]
+
+    // Pre-check for missing cloud API keys
+    if (['openai', 'anthropic', 'grok', 'mistral', 'google'].includes(provider) && !providerSettings.apiKey) {
+      setError(`API key is missing for ${PROVIDER_LABELS[provider] || provider}. Please click the settings button (⚙) to enter your API key.`)
       return
     }
 
@@ -596,6 +706,54 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     abortControllerRef.current?.abort()
   }
 
+  // Generate packaged prompt context including imported history and continuation messages
+  function getFullConversationMarkdown() {
+    let fullMarkdown = markdown
+    if (continuationMessages.length > 0) {
+      fullMarkdown += '\n\n' + continuationMessages.map(m => {
+        const roleName = m.role === 'user' ? 'You' : (m.model || 'Assistant')
+        return `## ${roleName}\n\n${m.content}`
+      }).join('\n\n')
+    }
+    return fullMarkdown
+  }
+
+  const fullMarkdownContext = getFullConversationMarkdown()
+  const promptText = wrapMarkdown(fullMarkdownContext)
+  const promptLength = promptText.length
+  const isTooLong = promptLength > 1000
+
+  async function handleWebappRedirect() {
+    const copied = await copyToClipboard(promptText)
+    
+    // Determine provider redirect URL
+    let redirectUrl = 'https://chatgpt.com/'
+    if (settings.selectedModel === 'chatgpt-web') {
+      redirectUrl = isTooLong ? 'https://chatgpt.com/' : `https://chatgpt.com/?prompt=${encodeURIComponent(promptText)}`
+    } else if (settings.selectedModel === 'claude-web') {
+      redirectUrl = isTooLong ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encodeURIComponent(promptText)}`
+    } else if (settings.selectedModel === 'gemini-web') {
+      redirectUrl = isTooLong ? 'https://gemini.google.com/' : `https://gemini.google.com/?prompt=${encodeURIComponent(promptText)}`
+    } else if (settings.selectedModel === 'grok-web') {
+      redirectUrl = isTooLong ? 'https://grok.com/' : `https://grok.com/?prompt=${encodeURIComponent(promptText)}`
+    } else if (settings.selectedModel === 'copilot-web') {
+      redirectUrl = isTooLong ? 'https://copilot.microsoft.com/' : `https://copilot.microsoft.com/?prompt=${encodeURIComponent(promptText)}`
+    }
+
+    if (copied) {
+      setError(`Context copied to clipboard! Opening ${
+        settings.selectedModel === 'chatgpt-web' ? 'ChatGPT' :
+        settings.selectedModel === 'claude-web' ? 'Claude' :
+        settings.selectedModel === 'gemini-web' ? 'Gemini' :
+        settings.selectedModel === 'grok-web' ? 'Grok' : 'Copilot'
+      }...`)
+    } else {
+      setError(`Failed to copy to clipboard, opening web app anyway...`)
+    }
+
+    window.open(redirectUrl, '_blank', 'noopener,noreferrer')
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -613,22 +771,24 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isSettingsOpen])
 
-  if (!isExpanded) {
+  if (!isExpanded && !disableCollapse) {
     return (
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
-        className="group mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.54),rgba(255,255,255,0.32))] px-5 py-4 transition-all duration-200 hover:-translate-y-px hover:border-line-strong hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(255,255,255,0.46))] hover:shadow-soft"
+        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-teal hover:bg-paper-solid hover:shadow-soft text-left"
       >
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(188,132,66,0.18),rgba(49,67,58,0.1))] text-[0.9rem]">
-            ▶
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.9rem] transition-colors group-hover:bg-teal/20">
+            <svg className="h-4 w-4 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
           </span>
-          <span className="text-[0.95rem] font-semibold text-ink">
+          <span className="text-[0.95rem] font-bold text-ink">
             Continue this conversation
           </span>
         </div>
-        <span className={cn(monoCapsClass, 'text-[0.68rem] text-ink-soft group-hover:text-ink')}>
+        <span className={cn(monoCapsClass, 'text-[0.68rem] font-bold text-ink-soft group-hover:text-teal transition-colors')}>
           Pick any model
         </span>
       </button>
@@ -640,21 +800,21 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
       {/* Settings Modal */}
       {isSettingsOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs"
           onClick={() => setIsSettingsOpen(false)}
         >
           <div
-            className="panel-shell w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 max-[720px]:p-5"
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 max-[720px]:p-5 animate-slide-up bg-paper-solid border border-border-contrast rounded-xl shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-5">
-              <h2 className="text-[1.05rem] font-bold text-ink">
+            <div className="flex items-center justify-between pb-4 border-b border-border-contrast mb-5">
+              <h2 className="text-[1.05rem] font-extrabold text-ink uppercase tracking-wider">
                 Model Settings
               </h2>
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-colors hover:bg-white/68 hover:border-line-strong"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-contrast bg-paper-solid text-ink-soft hover:text-ink hover:bg-paper-solid-inset transition-colors"
               >
                 <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
                   <path d="M18 6L6 18M6 6l12 12" className="fill-none stroke-current stroke-[2] stroke-linecap-round" />
@@ -665,18 +825,18 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
             <div className="grid gap-5">
               {/* Cloud Providers */}
               <div className="grid gap-3">
-                <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
+                <p className={cn(monoCapsClass, 'text-[0.72rem] font-bold text-ink-soft')}>
                   Cloud Providers
                 </p>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.82rem] font-semibold text-ink-soft">
+                  <label className="text-[0.82rem] font-bold text-ink">
                     Select Provider to Configure
                   </label>
                   <div className="relative">
                     <select
                       value={activeCloudEdit}
                       onChange={(e) => setActiveCloudEdit(e.target.value as any)}
-                      className="w-full appearance-none rounded-lg border border-line bg-white/50 px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,background] hover:border-line-strong hover:bg-white/72 focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                      className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
                     >
                       <option value="openai">OpenAI</option>
                       <option value="anthropic">Anthropic</option>
@@ -697,9 +857,9 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4 mt-1">
+                <div className="rounded-lg border border-border-contrast bg-paper-solid-elevated p-4 shadow-sm mt-1">
                   <div className="flex items-center justify-between pb-3">
-                    <span className="text-[0.9rem] font-semibold text-ink">
+                    <span className="text-[0.9rem] font-bold text-ink">
                       {PROVIDER_LABELS[activeCloudEdit]} Settings
                     </span>
                     <ConnectionBadge status={connectionStatus[activeCloudEdit]} />
@@ -710,12 +870,12 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                       placeholder="API Key"
                       value={settings[activeCloudEdit].apiKey}
                       onChange={(e) => updateProviderSettings(activeCloudEdit, { apiKey: e.target.value })}
-                      className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
                     />
                     <button
                       type="button"
                       onClick={() => handleTestConnection(activeCloudEdit)}
-                      className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
+                      className="w-fit rounded-lg border border-border-contrast bg-paper-solid px-3.5 py-2 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink transition-colors hover:border-line-strong hover:bg-paper-solid-inset"
                     >
                       Test Connection
                     </button>
@@ -725,18 +885,18 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
 
               {/* Local Providers */}
               <div className="grid gap-3">
-                <p className={cn(monoCapsClass, 'text-[0.72rem] text-ink-soft')}>
+                <p className={cn(monoCapsClass, 'text-[0.72rem] font-bold text-ink-soft')}>
                   Local Models
                 </p>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.82rem] font-semibold text-ink-soft">
+                  <label className="text-[0.82rem] font-bold text-ink">
                     Select Local Provider to Configure
                   </label>
                   <div className="relative">
                     <select
                       value={activeLocalEdit}
                       onChange={(e) => setActiveLocalEdit(e.target.value as any)}
-                      className="w-full appearance-none rounded-lg border border-line bg-white/50 px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,background] hover:border-line-strong hover:bg-white/72 focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                      className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
                     >
                       <option value="ollama">Ollama</option>
                       <option value="lmstudio">LM Studio</option>
@@ -755,9 +915,9 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-4 mt-1">
+                <div className="rounded-lg border border-border-contrast bg-paper-solid-elevated p-4 shadow-sm mt-1">
                   <div className="flex items-center justify-between pb-3">
-                    <span className="text-[0.9rem] font-semibold text-ink">
+                    <span className="text-[0.9rem] font-bold text-ink">
                       {PROVIDER_LABELS[activeLocalEdit]} Settings
                     </span>
                     <ConnectionBadge status={connectionStatus[activeLocalEdit]} />
@@ -768,7 +928,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                       placeholder="Endpoint URL"
                       value={settings[activeLocalEdit].baseUrl}
                       onChange={(e) => updateProviderSettings(activeLocalEdit, { baseUrl: e.target.value })}
-                      className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
                     />
                     {activeLocalEdit === 'custom' && (
                       <input
@@ -776,7 +936,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                         placeholder="API Key (optional)"
                         value={settings[activeLocalEdit].apiKey}
                         onChange={(e) => updateProviderSettings(activeLocalEdit, { apiKey: e.target.value })}
-                        className="w-full rounded-lg border border-line bg-paper-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow] focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                        className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
                       />
                     )}
                     <div className="flex gap-2">
@@ -784,14 +944,14 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                         type="button"
                         onClick={() => handleFetchModels(activeLocalEdit)}
                         disabled={isFetchingModels}
-                        className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink disabled:opacity-50"
+                        className="rounded-lg border border-border-contrast bg-paper-solid px-3.5 py-2 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink transition-colors hover:border-line-strong hover:bg-paper-solid-inset disabled:opacity-50"
                       >
                         {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleTestConnection(activeLocalEdit)}
-                        className="w-fit rounded-lg border border-line bg-white/50 px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.08em] text-ink-soft transition-colors hover:border-line-strong hover:bg-white/72 hover:text-ink"
+                        className="rounded-lg border border-border-contrast bg-paper-solid px-3.5 py-2 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink transition-colors hover:border-line-strong hover:bg-paper-solid-inset"
                       >
                         Test
                       </button>
@@ -800,7 +960,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                 </div>
               </div>
 
-              <p className="text-center text-[0.78rem] text-ink-soft">
+              <p className="text-center text-[0.75rem] text-ink-soft mt-2">
                 All keys are stored in your browser only. Nothing is sent to our server.
               </p>
             </div>
@@ -809,15 +969,17 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
       )}
 
       {/* Continuation Panel */}
-      <div className="mt-3 rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(255,255,255,0.54),rgba(255,255,255,0.32))] backdrop-blur-[20px]">
+      <div className={cn("mt-4 rounded-xl border border-border-contrast bg-paper-solid-elevated shadow-lg animate-fade-in overflow-hidden", className)}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+        <div className="flex items-center justify-between border-b border-border-contrast px-5 py-3.5 bg-paper-solid">
           <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[linear-gradient(135deg,rgba(188,132,66,0.18),rgba(49,67,58,0.1))] text-[0.8rem]">
-              ▶
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.85rem]">
+              <svg className="h-4.5 w-4.5 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
             </span>
-            <span className="text-[0.9rem] font-semibold text-ink">
-              Continue
+            <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
+              Continuation Chat
             </span>
           </div>
 
@@ -834,10 +996,10 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                     selectedModel: model,
                   })
                 }}
-                className="h-8 appearance-none rounded-full border border-line bg-white/50 px-3 pr-7 font-mono text-[0.72rem] uppercase tracking-[0.06em] text-ink outline-none transition-[border-color,background] hover:border-line-strong hover:bg-white/72 focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
+                className="h-8 appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
               >
                 {CLOUD_MODELS.length > 0 && (
-                  <optgroup label="Cloud">
+                  <optgroup label="Cloud API (Requires Key)">
                     {CLOUD_MODELS.map((m) => (
                       <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
                         {m.name}
@@ -846,7 +1008,7 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                   </optgroup>
                 )}
                 {localModels.length > 0 && (
-                  <optgroup label="Local">
+                  <optgroup label="Local API">
                     {localModels.map((m) => (
                       <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
                         {m.name}
@@ -854,6 +1016,13 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
                     ))}
                   </optgroup>
                 )}
+                <optgroup label="Browser Web Apps (Free)">
+                  <option value="webapp:chatgpt-web">ChatGPT Web App</option>
+                  <option value="webapp:claude-web">Claude Web App</option>
+                  <option value="webapp:gemini-web">Gemini Web App</option>
+                  <option value="webapp:grok-web">Grok Web App</option>
+                  <option value="webapp:copilot-web">Copilot Web App</option>
+                </optgroup>
               </select>
               <svg
                 aria-hidden="true"
@@ -870,9 +1039,13 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
             {/* Settings button */}
             <button
               type="button"
+              disabled={settings.selectedProvider === 'webapp'}
               onClick={() => setIsSettingsOpen(true)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[border-color,background,color] hover:border-line-strong hover:bg-white/68 hover:text-ink"
-              title="Model settings"
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-contrast bg-paper-solid text-ink-soft hover:text-ink hover:bg-paper-solid-inset transition-colors",
+                settings.selectedProvider === 'webapp' && "opacity-35 cursor-not-allowed"
+              )}
+              title={settings.selectedProvider === 'webapp' ? "No configuration needed for web apps" : "Model settings"}
             >
               <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -884,161 +1057,247 @@ export function ChatContinuation({ markdown }: ChatContinuationProps) {
             </button>
 
             {/* Collapse button */}
-            <button
-              type="button"
-              onClick={() => setIsExpanded(false)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[border-color,background,color] hover:border-line-strong hover:bg-white/68 hover:text-ink"
-            >
-              <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
-                <path d="M18 15l-6-6-6 6" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="max-h-[24rem] min-h-[8rem] overflow-y-auto overscroll-contain px-5 py-4">
-          {continuationMessages.length === 0 && !isStreaming && (
-            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
-              <p className="text-[0.9rem] text-ink-muted">
-                Type a message to continue the conversation with{' '}
-                <span className="font-semibold text-ink">{selectedModelName}</span>
-              </p>
-              <p className="text-[0.78rem] text-ink-soft">
-                The full imported conversation will be included as context.
-              </p>
-            </div>
-          )}
-
-          {continuationMessages.map((msg, index) => (
-            <div
-              key={index}
-              className={cn(
-                'mb-4 last:mb-0',
-                msg.role === 'user' ? 'pl-8' : '',
-              )}
-            >
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className={cn(monoCapsClass, 'text-[0.68rem] text-ink-soft')}>
-                  {msg.role === 'user' ? 'You' : (
-                    <>
-                      {msg.model && (
-                        <span className="text-brass">{msg.model}</span>
-                      )}
-                    </>
-                  )}
-                </span>
-              </div>
-              {msg.role === 'assistant' ? (
-                <div className="markdown-preview text-[0.92rem] leading-[1.68]">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw, rehypeHighlight]}
-                    components={{
-                      a: ({ node: _node, ...props }) => (
-                        <a {...props} rel="noreferrer" target="_blank" />
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-line bg-[rgba(255,255,255,0.5)] px-4 py-3 text-[0.92rem] leading-[1.68] text-ink">
-                  {msg.content}
-                </div>
-              )}
-            </div>
-          ))}
-
-          {/* Streaming message */}
-          {isStreaming && streamingContent && (
-            <div className="mb-4">
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className={cn(monoCapsClass, 'text-[0.68rem] text-brass')}>
-                  {settings.selectedModel}
-                </span>
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-brass" />
-              </div>
-              <div className="markdown-preview text-[0.92rem] leading-[1.68]">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw, rehypeHighlight]}
-                  components={{
-                    a: ({ node: _node, ...props }) => (
-                      <a {...props} rel="noreferrer" target="_blank" />
-                    ),
-                  }}
-                >
-                  {streamingContent}
-                </ReactMarkdown>
-              </div>
-            </div>
-          )}
-
-          {isStreaming && !streamingContent && (
-            <div className="mb-4 flex items-center gap-2 py-2">
-              <span className={cn(monoCapsClass, 'text-[0.68rem] text-ink-soft')}>
-                Thinking
-              </span>
-              <span className="flex gap-1">
-                <span className="inline-block h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-ink-soft" />
-                <span className="inline-block h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_0.15s_infinite] rounded-full bg-ink-soft" />
-                <span className="inline-block h-1.5 w-1.5 animate-[bounce_1s_ease-in-out_0.3s_infinite] rounded-full bg-ink-soft" />
-              </span>
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4 rounded-xl border border-[rgba(142,57,44,0.18)] bg-[rgba(255,240,236,0.94)] px-4 py-3">
-              <p className={cn(monoCapsClass, 'pb-1 text-[0.68rem] text-danger-ink')}>Error</p>
-              <p className="text-[0.88rem] leading-[1.6] text-ink">{error}</p>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className="border-t border-line px-4 py-3">
-          <div className="flex items-end gap-2">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              rows={1}
-              className="min-h-[2.5rem] max-h-[8rem] flex-1 resize-none rounded-xl border border-line bg-paper-inset px-4 py-2.5 text-[0.92rem] text-ink outline-none transition-[border-color,box-shadow] placeholder:text-ink-soft focus:border-[rgba(155,106,51,0.48)] focus:shadow-[0_0_0_4px_var(--focus)]"
-              disabled={isStreaming}
-            />
-            {isStreaming ? (
+            {!disableCollapse && (
               <button
                 type="button"
-                onClick={handleStop}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(142,57,44,0.28)] bg-[rgba(142,57,44,0.08)] text-danger-ink transition-colors hover:bg-[rgba(142,57,44,0.14)]"
-                title="Stop generating"
+                onClick={() => setIsExpanded(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-contrast bg-paper-solid text-ink-soft hover:text-ink hover:bg-paper-solid-inset transition-colors"
               >
                 <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="2" className="fill-current" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(23,20,17,0.18)] bg-[linear-gradient(135deg,#292520,#171411)] text-[#f5eee5] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-[box-shadow,transform] hover:enabled:-translate-y-px hover:enabled:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_8px_16px_rgba(23,20,17,0.12)] disabled:opacity-40"
-                title="Send message"
-              >
-                <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
-                  <path d="M12 19V5M5 12l7-7 7 7" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
+                  <path d="M18 15l-6-6-6 6" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
                 </svg>
               </button>
             )}
           </div>
         </div>
+
+        {/* Dynamic Body content */}
+        {settings.selectedProvider === 'webapp' ? (
+          <div className="bg-paper-solid p-6 border-b border-border-contrast flex flex-col items-center justify-center gap-4 text-center animate-fade-in">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10 text-teal text-[1.2rem] mb-1">
+              <svg className="h-5.5 w-5.5 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </span>
+            <div className="max-w-md">
+              <p className="text-[0.92rem] font-bold text-ink">
+                Continue this conversation in {
+                  settings.selectedModel === 'chatgpt-web' ? 'ChatGPT' :
+                  settings.selectedModel === 'claude-web' ? 'Claude' :
+                  settings.selectedModel === 'gemini-web' ? 'Gemini' :
+                  settings.selectedModel === 'grok-web' ? 'Grok' : 'Copilot'
+                }
+              </p>
+              <p className="text-[0.78rem] text-ink-soft mt-1 leading-relaxed">
+                Browser web apps do not support API streaming. Instead, we'll package the entire conversation context (including any continuation messages below), copy it to your clipboard, and launch the platform.
+              </p>
+            </div>
+
+            {/* Prompt preview container */}
+            <div className="w-full max-w-md text-left mt-2">
+              <span className="text-[0.68rem] font-mono font-bold uppercase tracking-wider text-ink-soft mb-1 block">Context Prompt Preview</span>
+              <div className="relative rounded-lg border border-border-contrast bg-paper-solid-inset p-3 max-h-36 overflow-y-auto w-full">
+                <pre className="font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal">
+                  {promptText}
+                </pre>
+                <div className="absolute bottom-2 right-2">
+                  <span className="text-[0.58rem] font-mono bg-paper-solid border border-border-contrast rounded px-1.5 py-0.5 text-ink-soft">
+                    {promptLength.toLocaleString()} chars
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleWebappRedirect}
+              className="w-full max-w-md flex items-center justify-center gap-2 rounded-lg bg-teal text-white py-2.5 px-4 text-xs font-mono font-bold uppercase tracking-wider border border-teal/10 hover:bg-teal-hover transition-all shadow-sm mt-2"
+            >
+              Copy Context & Open Web App
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Messages */}
+            <div className="max-h-[30rem] min-h-[8rem] overflow-y-auto overscroll-contain px-5 py-5 border-b border-border-contrast bg-paper-solid flex flex-col gap-4">
+              {continuationMessages.length === 0 && !isStreaming && (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10 text-teal text-[1.2rem] mb-2">
+                    <svg className="h-6 w-6 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </span>
+                  <p className="text-[0.92rem] font-bold text-ink-muted">
+                    Type a message to continue the conversation with{' '}
+                    <span className="text-teal font-extrabold">{selectedModelName}</span>
+                  </p>
+                  <p className="text-[0.78rem] text-ink-soft max-w-sm">
+                    The imported conversation above is automatically loaded in context.
+                  </p>
+                </div>
+              )}
+
+              {continuationMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    'flex flex-col w-full',
+                    msg.role === 'user' ? 'items-end' : 'items-start',
+                  )}
+                >
+                  <div className="mb-1 flex items-center gap-2 px-1">
+                    <span className={cn(monoCapsClass, 'text-[0.68rem] font-bold text-ink-soft')}>
+                      {msg.role === 'user' ? 'You' : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[0.62rem] font-mono font-bold uppercase bg-teal/10 text-teal border border-teal/20">
+                          {msg.model ?? 'assistant'}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className={cn(
+                    "rounded-xl border p-4 text-[0.92rem] shadow-sm max-w-[85%] min-w-[12rem]",
+                    msg.role === 'user'
+                      ? "bg-paper-solid-inset border-border-contrast text-ink"
+                      : "bg-paper-solid-elevated border-border-contrast text-ink"
+                  )}>
+                    {msg.role === 'user' ? (
+                      <div className="whitespace-pre-wrap leading-[1.6]">{msg.content}</div>
+                    ) : (
+                      <div className="markdown-preview leading-[1.68]">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                          components={{
+                            a: ({ node: _node, ...props }) => (
+                              <a {...props} rel="noreferrer" target="_blank" />
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Streaming message */}
+              {isStreaming && streamingContent && (
+                <div className="flex flex-col items-start w-full">
+                  <div className="mb-1 flex items-center gap-2 px-1">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[0.62rem] font-mono font-bold uppercase bg-teal/10 text-teal border border-teal/20">
+                      {settings.selectedModel}
+                    </span>
+                    <span className="inline-flex items-center text-[0.6rem] font-mono font-bold uppercase text-teal animate-pulse">
+                      (STREAMING)
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated p-4 text-[0.92rem] shadow-sm max-w-[85%] w-full">
+                    <div className="markdown-preview leading-[1.68]">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                        components={{
+                          a: ({ node: _node, ...props }) => (
+                            <a {...props} rel="noreferrer" target="_blank" />
+                          ),
+                        }}
+                      >
+                        {streamingContent}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isStreaming && !streamingContent && (
+                <div className="flex flex-col items-start w-full">
+                  <div className="mb-1 flex items-center gap-2 px-1">
+                    <span className={cn(monoCapsClass, 'font-mono text-[0.68rem] font-bold text-ink-soft')}>
+                      Thinking
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated px-4 py-3 shadow-sm flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-teal" />
+                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_0.15s_infinite] rounded-full bg-teal" />
+                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_0.3s_infinite] rounded-full bg-teal" />
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="px-4 py-3 bg-paper-solid border-t border-border-contrast">
+              <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type a message to continue conversation..."
+                  rows={1}
+                  className="min-h-[2.5rem] max-h-[8rem] flex-1 resize-none rounded-lg border border-border-contrast bg-paper-solid-inset px-4 py-2.5 text-[0.9rem] text-ink outline-none transition-all placeholder:text-ink-soft focus:border-teal focus:ring-2 focus:ring-teal/20 disabled:opacity-50"
+                  disabled={isStreaming}
+                />
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-600 text-white shadow-sm hover:bg-rose-700 hover:shadow transition-colors"
+                    title="Stop generating"
+                  >
+                    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+                      <rect x="6" y="6" width="12" height="12" rx="2" className="fill-current" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={!inputValue.trim()}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-teal/20 bg-teal text-white shadow-sm hover:enabled:bg-teal-hover hover:enabled:shadow transition-all disabled:opacity-30"
+                    title="Send message"
+                  >
+                    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+                      <path d="M12 19V5M5 12l7-7 7 7" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
+      {error && (
+        <div
+          aria-live="assertive"
+          className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50 grid w-[min(28rem,calc(100vw-2rem))] gap-2.5 animate-slide-up"
+        >
+          <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-rose-200 bg-rose-50/95 dark:bg-rose-950/90 dark:border-rose-900/50 text-rose-800 dark:text-rose-200 p-3.5 pr-3 pl-4 shadow-lg backdrop-blur-md">
+            <div className="grid gap-[0.2rem]">
+              <p className={cn(monoCapsClass, 'font-mono text-[0.68rem] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400')}>
+                Connection Error
+              </p>
+              <p className="text-[0.85rem] leading-[1.5] font-medium">{error}</p>
+            </div>
+            <button
+              aria-label="Dismiss error"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-paper/50 hover:bg-paper-raised text-ink-soft hover:text-ink transition-colors animate-fade-in"
+              type="button"
+              onClick={() => setError(null)}
+            >
+              <span aria-hidden="true" className="inline-block rotate-45 text-base leading-none">
+                +
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -1049,13 +1308,13 @@ function ConnectionBadge({ status }: { status: 'idle' | 'testing' | 'ok' | 'fail
   if (status === 'idle') return null
 
   const config = {
-    testing: { label: 'Testing...', bg: 'bg-[rgba(156,118,45,0.12)]', text: 'text-warning-ink' },
-    ok: { label: 'Connected', bg: 'bg-[rgba(49,120,60,0.12)]', text: 'text-[#2d6a34]' },
-    fail: { label: 'Failed', bg: 'bg-[rgba(142,57,44,0.12)]', text: 'text-danger-ink' },
+    testing: { label: 'Testing...', bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-700 dark:text-amber-400' },
+    ok: { label: 'Connected', bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-700 dark:text-emerald-400' },
+    fail: { label: 'Failed', bg: 'bg-rose-500/10 border-rose-500/30', text: 'text-rose-700 dark:text-rose-400' },
   }[status]
 
   return (
-    <span className={cn('rounded-full px-2.5 py-1 font-mono text-[0.66rem] uppercase tracking-[0.08em]', config.bg, config.text)}>
+    <span className={cn('rounded px-2 py-0.5 font-mono text-[0.66rem] uppercase tracking-wider border font-bold', config.bg, config.text)}>
       {config.label}
     </span>
   )
