@@ -644,8 +644,8 @@ function Home() {
               className={cn(
                 'pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-[0.85rem] rounded-[1.1rem] border p-[0.95rem] pr-[0.95rem] pl-4 shadow-soft backdrop-blur-[20px]',
                 toast.kind === 'error'
-                  ? 'border-[rgba(142,57,44,0.18)] bg-[linear-gradient(180deg,rgba(255,240,236,0.94),rgba(255,246,242,0.9))]'
-                  : 'border-[rgba(156,118,45,0.18)] bg-[linear-gradient(180deg,rgba(255,245,228,0.94),rgba(255,249,240,0.88))]',
+                  ? 'border-[rgba(239,68,68,0.24)] bg-[linear-gradient(180deg,rgba(127,29,29,0.6),rgba(153,27,27,0.5))]'
+                  : 'border-[rgba(245,158,11,0.24)] bg-[linear-gradient(180deg,rgba(120,53,15,0.6),rgba(146,64,14,0.5))]',
               )}
               key={toast.id}
               role={toast.kind === 'error' ? 'alert' : 'status'}
@@ -662,12 +662,12 @@ function Home() {
                 >
                   {toast.kind === 'error' ? 'Error' : 'Warning'}
                 </p>
-                <p className="leading-[1.6] text-ink">{toast.message}</p>
+                <p className="leading-[1.6] text-ink-soft">{toast.message}</p>
               </div>
 
               <button
                 aria-label={`Dismiss ${toast.kind}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[transform,background,border-color] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/68"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-elevated text-ink-soft transition-[transform,background,border-color] duration-[180ms] ease-out hover:-translate-y-px hover:border-brass hover:bg-paper-raised"
                 type="button"
                 onClick={() => removeToast(toast.id)}
               >
@@ -696,7 +696,7 @@ function Home() {
               <button
                 type="button"
                 onClick={() => setIsWhyModalOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-colors hover:bg-white/68 hover:border-line-strong"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-line bg-paper-elevated text-ink-soft transition-colors hover:bg-paper-raised hover:border-brass hover:text-brass"
               >
                 <svg
                   aria-hidden="true"
@@ -715,13 +715,13 @@ function Home() {
               {useCases.map((useCase) => (
                 <div
                   key={useCase.id}
-                  className="rounded-xl border border-line bg-[rgba(255,255,255,0.4)] p-5"
+                  className="rounded-xl border border-line bg-paper-raised p-5 transition-all hover:border-brass hover:bg-paper-elevated"
                 >
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brass/15 text-[0.85rem] font-semibold">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brass/20 text-[0.85rem] font-semibold text-brass">
                       {useCase.id}
                     </span>
-                    <h3 className="font-semibold text-ink">{useCase.title}</h3>
+                    <h3 className="font-semibold text-ink-soft">{useCase.title}</h3>
                   </div>
                   <p className="text-[0.9rem] leading-relaxed text-ink-muted">
                     {useCase.description}
@@ -741,7 +741,7 @@ function Home() {
             className="flex items-center gap-[0.9rem] rounded-lg p-1 -m-1 transition-opacity hover:opacity-70"
             aria-label="Deep refresh"
           >
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-[rgba(32,24,17,0.08)] bg-[linear-gradient(135deg,rgba(188,132,66,0.16),rgba(49,67,58,0.08)),rgba(255,255,255,0.56)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_14px_28px_rgba(62,43,23,0.08)]">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-[rgba(16,185,129,0.12)] bg-[linear-gradient(135deg,rgba(16,185,129,0.12),rgba(59,130,246,0.08)),rgba(31,41,55,0.6)] shadow-[inset_0_1px_0_rgba(52,211,153,0.15),0_14px_28px_rgba(0,0,0,0.2)]">
               <img
                 src="/logo-mark.svg"
                 alt="chatdump logo"
@@ -754,7 +754,7 @@ function Home() {
             <button
               type="button"
               onClick={() => setIsWhyModalOpen(true)}
-              className="w-fit rounded-full border border-line-strong bg-white/72 px-4 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-ink-soft shadow-soft transition-colors hover:bg-white hover:text-ink max-[721px]:hidden"
+              className="w-fit rounded-full border border-line-strong bg-paper-elevated px-4 py-2 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-ink-soft shadow-soft transition-colors hover:bg-paper-raised hover:text-ink-soft hover:border-brass max-[721px]:hidden"
             >
               Why use chatdump
             </button>)}
@@ -795,23 +795,23 @@ function Home() {
                     <span className="group relative inline-flex">
                       <button
                         aria-label="Supported share sources"
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-white/50 text-[0.68rem] font-semibold text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/72 hover:text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-line bg-paper-elevated text-[0.68rem] font-semibold text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-brass hover:bg-paper-raised hover:text-brass focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--focus)]"
                         title="Supported sources: ChatGPT, Claude, Copilot, Gemini, and Grok share links."
                         type="button"
                       >
                         ?
                       </button>
-                      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-[15.5rem] -translate-x-1/2 rounded-[0.85rem] border border-line bg-[rgba(255,251,246,0.98)] px-3 py-2 font-mono text-[0.7rem] leading-[1.5] tracking-[0.01em] text-ink-muted opacity-0 shadow-soft transition duration-[160ms] ease-out group-hover:opacity-100 group-focus-within:opacity-100">
+                      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 w-[15.5rem] -translate-x-1/2 rounded-[0.85rem] border border-line bg-paper-elevated px-3 py-2 font-mono text-[0.7rem] leading-[1.5] tracking-[0.01em] text-ink-muted opacity-0 shadow-soft transition duration-[160ms] ease-out group-hover:opacity-100 group-focus-within:opacity-100">
                         ChatGPT, Claude, Copilot, Gemini, and Grok share links
                         are supported.
                       </span>
                     </span>
                   </span>
-                  <div className="grid min-h-[3.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-[0.8rem] rounded-[1.1rem] border border-line-strong bg-paper-inset pl-[0.95rem] pr-[0.4rem] transition-[border-color,box-shadow,transform] duration-[180ms] ease-out focus-within:-translate-y-px focus-within:border-[rgba(155,106,51,0.48)] focus-within:shadow-[0_0_0_4px_var(--focus)] max-[500px]:min-h-[3.2rem] max-[500px]:gap-[0.6rem] max-[500px]:rounded-[0.95rem] max-[500px]:pl-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:min-h-[3.45rem] max-[720px]:gap-[0.65rem] max-[720px]:rounded-[1rem] max-[720px]:pl-[0.85rem] max-[720px]:pr-[0.3rem]">
-                    <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem]" viewBox="0 0 24 24">
+                  <div className="group grid min-h-[3.75rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-[0.8rem] rounded-[1.1rem] border border-line-strong bg-paper-inset pl-[0.95rem] pr-[0.4rem] transition-[border-color,box-shadow,transform] duration-[180ms] ease-out focus-within:-translate-y-px focus-within:border-[rgba(16,185,129,0.48)] focus-within:shadow-[0_0_0_4px_rgba(16,185,129,0.15)] max-[500px]:min-h-[3.2rem] max-[500px]:gap-[0.6rem] max-[500px]:rounded-[0.95rem] max-[500px]:pl-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:min-h-[3.45rem] max-[720px]:gap-[0.65rem] max-[720px]:rounded-[1rem] max-[720px]:pl-[0.85rem] max-[720px]:pr-[0.3rem]">
+                    <svg aria-hidden="true" className="h-[1.05rem] w-[1.05rem] text-ink-soft transition-colors group-focus-within:text-brass" viewBox="0 0 24 24">
                       <path
                         d="M14 5h5v5M10 14 19 5M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"
-                        className="fill-none stroke-[rgba(22,19,16,0.56)] stroke-[1.9] stroke-linecap-round stroke-linejoin-round"
+                        className="fill-none stroke-current stroke-[1.9] stroke-linecap-round stroke-linejoin-round"
                       />
                     </svg>
                     <input
@@ -857,7 +857,7 @@ function Home() {
                     {recentUrls.map((recentUrl) => (
                       <button
                         key={recentUrl}
-                        className="group relative inline-flex max-w-[20rem] items-center gap-1.5 rounded-full border border-line bg-white/40 px-3 py-1.5 font-mono text-[0.73rem] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-line-strong hover:bg-white/60 hover:text-ink"
+                        className="group relative inline-flex max-w-[20rem] items-center gap-1.5 rounded-full border border-line bg-paper-elevated px-3 py-1.5 font-mono text-[0.73rem] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-brass hover:bg-paper-raised hover:text-ink-soft"
                         onClick={() => handleSelectRecentUrl(recentUrl)}
                         type="button"
                       >
@@ -882,8 +882,8 @@ function Home() {
               ) : null}
 
               {isPending ? (
-                <div className="h-[0.42rem] overflow-hidden rounded-full bg-[rgba(23,20,17,0.08)]" aria-label="Processing share link">
-                  <div className="h-full w-[36%] animate-[slide_1.4s_ease-in-out_infinite] rounded-full bg-[linear-gradient(90deg,var(--brass),var(--brass-strong))]" />
+                <div className="h-[0.42rem] overflow-hidden rounded-full bg-[rgba(255,255,255,0.08)]" aria-label="Processing share link">
+                  <div className="h-full w-[36%] animate-[slide_1.4s_ease-in-out_infinite] rounded-full bg-[linear-gradient(90deg,#10b981,#34d399)]" />
                 </div>
               ) : null}
             </section>
@@ -914,23 +914,23 @@ function Home() {
                     aria-label="Export metadata"
                   >
                     {lineCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-brass/30 bg-brass/10 px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-brass max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {lineCount} lines
                       </span>
                     ) : null}
                     {characterCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-line bg-[rgba(63,47,33,0.05)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-ink-soft max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-brass/30 bg-brass/10 px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-brass max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {characterCount} chars
                       </span>
                     ) : null}
                     {warningCount > 0 ? (
-                      <span className="inline-flex min-h-8 items-center rounded-full border border-[rgba(156,118,45,0.18)] bg-[rgba(156,118,45,0.12)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-warning-ink max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
+                      <span className="inline-flex min-h-8 items-center rounded-full border border-[rgba(245,158,11,0.24)] bg-[rgba(245,158,11,0.12)] px-[0.74rem] font-mono text-[0.74rem] uppercase tracking-[0.08em] text-warning-ink max-[500px]:min-h-7 max-[500px]:px-[0.6rem] max-[500px]:text-[0.68rem]">
                         {warningCount} warning{warningCount > 1 ? 's' : ''}
                       </span>
                     ) : null}
                     <button
                       aria-label="Edit URL"
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-white/40 px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-line-strong hover:bg-white/60 hover:text-ink max-[720px]:hidden"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-paper-elevated px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft transition-[border-color,background,color] duration-[180ms] ease-out hover:border-brass hover:bg-paper-raised hover:text-brass max-[720px]:hidden"
                       onClick={handleEditUrl}
                     >
                       <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
@@ -943,7 +943,7 @@ function Home() {
                     </button>
                     <button
                       aria-label="Edit URL"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white/46 text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-line-strong hover:bg-white/68 hover:text-ink min-[721px]:hidden"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-paper-elevated text-ink-soft transition-[border-color,background,color,transform] duration-[180ms] ease-out hover:-translate-y-px hover:border-brass hover:bg-paper-raised hover:text-brass min-[721px]:hidden"
                       onClick={handleEditUrl}
                     >
                       <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
@@ -956,15 +956,15 @@ function Home() {
                   </div>
 
                   <div className="flex flex-wrap items-center justify-end gap-2 max-[500px]:gap-1.5 max-[720px]:justify-between">
-                    <div className="inline-flex rounded-full border border-line-strong bg-white/72 p-0.5 shadow-soft max-[720px]:order-2">
+                    <div className="inline-flex rounded-full border border-line-strong bg-paper-elevated p-0.5 shadow-soft max-[720px]:order-2">
                       <button
                         aria-label="Markdown"
                         aria-pressed={!isRenderedPreview && !isPlainText}
                         className={cn(
                           'inline-flex h-[2.6rem] items-center gap-1.5 rounded-l-full border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
                           !isRenderedPreview && !isPlainText
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
+                            ? 'border-brass bg-brass/15 shadow-[inset_0_1px_0_rgba(52,211,153,0.15),0_4px_12px_rgba(16,185,129,0.08)] text-brass'
+                            : 'text-ink-soft hover:text-brass',
                         )}
                         onClick={() => {
                           setIsPlainText(false)
@@ -986,8 +986,8 @@ function Home() {
                         className={cn(
                           'inline-flex h-[2.6rem] items-center gap-1.5 border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
                           isRenderedPreview
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
+                            ? 'border-brass bg-brass/15 shadow-[inset_0_1px_0_rgba(52,211,153,0.15),0_4px_12px_rgba(16,185,129,0.08)] text-brass'
+                            : 'text-ink-soft hover:text-brass',
                         )}
                         onClick={() => {
                           setIsPlainText(false)
@@ -1009,8 +1009,8 @@ function Home() {
                         className={cn(
                           'inline-flex h-[2.6rem] items-center gap-1.5 rounded-r-full border border-transparent px-3 font-mono text-[0.72rem] uppercase tracking-[0.06em] transition-[background,color,box-shadow,border-color] duration-[180ms] ease-out',
                           isPlainText
-                            ? 'border-line bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_4px_12px_rgba(23,20,17,0.06)] text-ink'
-                            : 'text-ink-soft hover:text-ink',
+                            ? 'border-brass bg-brass/15 shadow-[inset_0_1px_0_rgba(52,211,153,0.15),0_4px_12px_rgba(16,185,129,0.08)] text-brass'
+                            : 'text-ink-soft hover:text-brass',
                         )}
                         onClick={() => setIsPlainText((v) => !v)}
                       >

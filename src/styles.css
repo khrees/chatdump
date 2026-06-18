@@ -30,32 +30,43 @@
 }
 
 :root {
-  --paper: #efe8de;
-  --paper-elevated: rgba(249, 244, 236, 0.82);
-  --paper-raised: rgba(255, 251, 246, 0.92);
-  --paper-inset: rgba(63, 47, 33, 0.05);
-  --ink: #161310;
-  --ink-muted: #5f564b;
-  --ink-soft: #897d70;
-  --brass: #9b6a33;
-  --brass-strong: #bc8442;
-  --olive: #31433a;
-  --line: rgba(32, 24, 17, 0.09);
-  --line-strong: rgba(32, 24, 17, 0.16);
-  --focus: rgba(155, 106, 51, 0.16);
-  --shadow: 0 28px 80px rgba(62, 43, 23, 0.12);
-  --shadow-soft: 0 14px 32px rgba(62, 43, 23, 0.08);
-  --danger-bg: rgba(142, 57, 44, 0.12);
-  --danger-ink: #7c352b;
-  --warning-bg: rgba(156, 118, 45, 0.14);
-  --warning-ink: #7c5b23;
+  /* Background & Surface Colors - Modern Dark Theme */
+  --paper: #0f1419;
+  --paper-elevated: rgba(17, 24, 39, 0.85);
+  --paper-raised: rgba(31, 41, 55, 0.92);
+  --paper-inset: rgba(255, 255, 255, 0.03);
+  
+  /* Text & Ink Colors */
+  --ink: #f3f4f6;
+  --ink-muted: #9ca3af;
+  --ink-soft: #d1d5db;
+  
+  /* Primary Brand Accent - Vibrant Emerald */
+  --brass: #10b981;
+  --brass-strong: #34d399;
+  
+  /* Accent Colors */
+  --olive: #3b82f6;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --focus: rgba(16, 185, 129, 0.2);
+  
+  /* Shadow & Depth */
+  --shadow: 0 28px 80px rgba(0, 0, 0, 0.32);
+  --shadow-soft: 0 14px 32px rgba(0, 0, 0, 0.24);
+  
+  /* Status Colors */
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --danger-ink: #fca5a5;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --warning-ink: #fcd34d;
 }
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(188, 132, 66, 0.14), transparent 28%),
-    radial-gradient(circle at 82% 10%, rgba(49, 67, 58, 0.1), transparent 24%),
-    linear-gradient(180deg, #f7f3ed 0%, var(--paper) 100%);
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.08), transparent 28%),
+    radial-gradient(circle at 82% 10%, rgba(59, 130, 246, 0.08), transparent 24%),
+    linear-gradient(180deg, #0f1419 0%, var(--paper) 100%);
   color: var(--ink);
   font-family:
     'Neue Haas Grotesk Text',
@@ -110,7 +121,7 @@ body::after {
 }
 
 body::before {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), transparent 68%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.12), transparent 68%);
   height: 26rem;
   left: -6rem;
   top: 4rem;
@@ -118,7 +129,7 @@ body::before {
 }
 
 body::after {
-  background: radial-gradient(circle, rgba(188, 132, 66, 0.1), transparent 68%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent 68%);
   bottom: 3rem;
   height: 18rem;
   right: -4rem;
@@ -126,17 +137,17 @@ body::after {
 }
 
 .panel-shell {
-  backdrop-filter: blur(20px);
-  background: linear-gradient(180deg, var(--paper-elevated), rgba(255, 255, 255, 0.68));
+  backdrop-filter: blur(12px);
+  background: linear-gradient(180deg, var(--paper-elevated), rgba(17, 24, 39, 0.6));
   border: 1px solid var(--line);
-  border-radius: 1.75rem;
+  border-radius: 1.5rem;
   box-shadow: var(--shadow);
   overflow: hidden;
   position: relative;
 }
 
 .panel-shell::before {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(188, 132, 66, 0.42), transparent 72%);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.08), transparent 72%);
   content: '';
   height: 1px;
   left: 0;
@@ -146,17 +157,17 @@ body::after {
 }
 
 .form-shell {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.34));
+  background: linear-gradient(180deg, rgba(31, 41, 55, 0.8), rgba(31, 41, 55, 0.4));
   border: 1px solid var(--line);
-  border-radius: 1.35rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  border-radius: 1.2rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .output-surface {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), var(--paper-raised));
+  background: linear-gradient(180deg, rgba(31, 41, 55, 0.6), var(--paper-raised));
   border: 1px solid var(--line);
-  border-radius: 1.3rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  border-radius: 1.2rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
@@ -165,9 +176,9 @@ body::after {
 }
 
 .output-surface:focus-visible {
-  border-color: rgba(155, 106, 51, 0.48);
+  border-color: rgba(16, 185, 129, 0.48);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 0 0 4px var(--focus);
 }
 
@@ -228,7 +239,7 @@ body::after {
 
 .markdown-preview strong {
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ink-soft);
 }
 
 .markdown-preview em {
@@ -310,10 +321,10 @@ body::after {
 }
 
 .markdown-preview blockquote {
-  background: rgba(63, 47, 33, 0.04);
-  border-left: 3px solid rgba(155, 106, 51, 0.4);
+  background: rgba(16, 185, 129, 0.08);
+  border-left: 3px solid rgba(16, 185, 129, 0.6);
   border-radius: 0 1rem 1rem 0;
-  color: var(--ink-muted);
+  color: var(--ink-soft);
   padding: 0.9rem 1rem;
 }
 
@@ -326,14 +337,14 @@ body::after {
 }
 
 .markdown-preview a {
-  color: var(--brass-strong);
+  color: #34d399;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
 }
 
 .markdown-preview code {
-  background: rgba(49, 67, 58, 0.08);
-  border: 1px solid rgba(49, 67, 58, 0.12);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.24);
   border-radius: 0.55rem;
   font-family:
     'IBM Plex Mono',
@@ -342,14 +353,15 @@ body::after {
     monospace;
   font-size: 0.86em;
   padding: 0.12rem 0.35rem;
+  color: #6ee7b7;
 }
 
 .markdown-preview pre {
-  background: linear-gradient(180deg, rgba(26, 23, 20, 0.96), rgba(17, 15, 12, 0.98));
-  border: 1px solid rgba(12, 10, 8, 0.28);
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.96), rgba(15, 20, 25, 0.98));
+  border: 1px solid rgba(16, 185, 129, 0.2);
   border-radius: 1rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  color: #f6efe5;
+  color: #d1d5db;
   font-family:
     'IBM Plex Mono',
     'SFMono-Regular',
@@ -379,9 +391,9 @@ body::after {
 }
 
 .markdown-preview .code-block-lang {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(16, 185, 129, 0.12);
   border-radius: 0 0 0.5rem 0.5rem;
-  color: rgba(246, 239, 229, 0.5);
+  color: rgba(52, 211, 153, 0.8);
   font-family:
     'IBM Plex Mono',
     'SFMono-Regular',
@@ -409,7 +421,7 @@ body::after {
 .markdown-preview .table-scroll-wrapper {
   border-radius: 0.75rem;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(31, 41, 55, 0.4);
   overflow-x: auto;
   padding: 0;
 }
@@ -447,7 +459,7 @@ body::after {
 }
 
 .markdown-preview th {
-  background: rgba(63, 47, 33, 0.05);
+  background: rgba(16, 185, 129, 0.1);
   font-weight: 600;
 }
 
@@ -627,4 +639,29 @@ body::after {
   to {
     transform: translateX(400%);
   }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.3), 0 0 0 0 rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: inset 0 1px 0 rgba(52, 211, 153, 0.5), 0 0 20px 8px rgba(16, 185, 129, 0.15);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Input focus glow effect */
+.form-shell input:focus {
+  animation: glow-pulse 2s ease-in-out infinite;
 }

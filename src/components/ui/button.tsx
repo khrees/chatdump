@@ -11,13 +11,13 @@ const baseClass =
 
 const variantClasses = {
   primary:
-    'min-h-[3.2rem] w-fit justify-between border border-[rgba(23,20,17,0.18)] bg-[linear-gradient(135deg,#292520,#171411)] px-[1rem] pr-[0.36rem] py-[0.3rem] text-[#f5eee5] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_24px_rgba(23,20,17,0.12)] hover:enabled:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_18px_28px_rgba(23,20,17,0.16)] max-[500px]:min-h-[2.85rem] max-[500px]:px-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:px-[0.9rem] max-[720px]:pr-[0.32rem]',
+    'min-h-[3.2rem] w-fit justify-between border border-[rgba(16,185,129,0.3)] bg-[linear-gradient(135deg,#059669,#10b981)] px-[1rem] pr-[0.36rem] py-[0.3rem] text-[#f3f4f6] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_16px_24px_rgba(16,185,129,0.2)] hover:enabled:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_18px_28px_rgba(16,185,129,0.28)] hover:enabled:bg-[linear-gradient(135deg,#10b981,#34d399)] max-[500px]:min-h-[2.85rem] max-[500px]:px-[0.8rem] max-[500px]:pr-[0.28rem] max-[720px]:px-[0.9rem] max[720px]:pr-[0.32rem]',
   secondary:
-    'min-h-12 border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft max-[500px]:px-[0.8rem] max-[500px]:pl-[0.75rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]',
+    'min-h-12 border border-line-strong bg-paper-elevated px-4 py-[0.35rem] pl-[0.9rem] text-ink-soft shadow-soft hover:enabled:bg-paper-raised hover:enabled:text-ink transition-colors max-[500px]:px-[0.8rem] max-[500px]:pl-[0.75rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]',
 } as const
 
 const pressedClass =
-  'border-[rgba(155,106,51,0.28)] bg-[rgba(188,132,66,0.14)] shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_10px_24px_rgba(155,106,51,0.1)]'
+  'border-[rgba(16,185,129,0.4)] bg-[rgba(16,185,129,0.2)] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_10px_24px_rgba(16,185,129,0.15)]'
 
 export function Button({
   className,
