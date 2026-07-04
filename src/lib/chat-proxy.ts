@@ -35,6 +35,14 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
     })
   }
 
+  const contentLength = request.headers.get('content-length')
+  if (contentLength && parseInt(contentLength, 10) > 500_000) {
+    return new Response(JSON.stringify({ error: 'payload_too_large' }), {
+      headers: { 'content-type': 'application/json' },
+      status: 413,
+    })
+  }
+
   let body: ChatProxyRequestBody
 
   try {
@@ -43,6 +51,13 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
     return new Response(JSON.stringify({ error: 'invalid_json' }), {
       headers: { 'content-type': 'application/json' },
       status: 400,
+    })
+  }
+
+  if (JSON.stringify(body).length > 500_000) {
+    return new Response(JSON.stringify({ error: 'payload_too_large' }), {
+      headers: { 'content-type': 'application/json' },
+      status: 413,
     })
   }
 
@@ -143,6 +158,8 @@ export async function handleChatProxyRequest(request: Request): Promise<Response
   })
 }
 
+const UPSTREAM_TIMEOUT_MS = 30_000
+
 async function fetchOpenAI(
   model: string,
   messages: ChatMessage[],
@@ -159,6 +176,7 @@ async function fetchOpenAI(
       'content-type': 'application/json',
     },
     method: 'POST',
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 }
 
@@ -178,6 +196,7 @@ async function fetchGrok(
       'content-type': 'application/json',
     },
     method: 'POST',
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 }
 
@@ -197,6 +216,7 @@ async function fetchMistral(
       'content-type': 'application/json',
     },
     method: 'POST',
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 }
 
@@ -227,6 +247,7 @@ async function fetchAnthropic(
       'x-api-key': apiKey,
     },
     method: 'POST',
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   })
 }
 

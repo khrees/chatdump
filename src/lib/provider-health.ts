@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
-import { convertShareUrlToMarkdown } from './convert'
+import { convertShareUrlToMarkdown } from './extract'
 import type { ShareProvider } from './url'
 
 const DEFAULT_PROVIDER_HEALTH_CACHE_TTL_MS = 5 * 60 * 1000

@@ -1,34 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
 import rehypeHighlight from 'rehype-highlight'
 import { cn } from '../../lib/cn'
-
-// ─── Storage keys ────────────────────────────────────────────────────────────
+import {
+  CLOUD_MODELS,
+  WEB_APPS,
+  PROVIDER_LABELS,
+  fetchLocalModels as libFetchLocalModels,
+  streamChatCompletion as libStreamChatCompletion,
+  streamOpenAICompat,
+} from '../../lib/chat'
+import type { ChatProvider, ProviderSettings } from '../../lib/chat'
 
 const CHAT_SETTINGS_KEY = 'chatdump.chat-settings.v1'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type ChatProvider = 'openai' | 'anthropic' | 'google' | 'grok' | 'mistral' | 'ollama' | 'lmstudio' | 'custom' | 'webapp'
-
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-interface ModelOption {
-  id: string
-  name: string
-  provider: ChatProvider
-}
-
-interface ProviderSettings {
-  apiKey: string
-  baseUrl: string
-  enabled: boolean
-}
 
 interface ChatSettings {
   openai: ProviderSettings
@@ -51,14 +36,6 @@ interface ContinuationMessage {
   provider?: ChatProvider
 }
 
-interface WebAppOption {
-  id: string
-  name: string
-  url: string
-}
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
 const DEFAULT_SETTINGS: ChatSettings = {
   openai: { apiKey: '', baseUrl: 'https://api.openai.com', enabled: false },
   anthropic: { apiKey: '', baseUrl: 'https://api.anthropic.com', enabled: false },
@@ -73,46 +50,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   selectedModel: 'chatgpt-web',
 }
 
-const CLOUD_MODELS: ModelOption[] = [
-  { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', provider: 'openai' },
-  { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'openai' },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai' },
-  { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
-  { id: 'claude-4.5-haiku', name: 'Claude 4.5 Haiku', provider: 'anthropic' },
-  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'google' },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google' },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'google' },
-  { id: 'grok-4.3', name: 'Grok 4.3', provider: 'grok' },
-  { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', provider: 'grok' },
-  { id: 'mistral-large-latest', name: 'Mistral Large', provider: 'mistral' },
-  { id: 'mistral-small-latest', name: 'Mistral Small', provider: 'mistral' },
-]
-
-const WEB_APPS: WebAppOption[] = [
-  { id: 'chatgpt-web', name: 'ChatGPT Web App', url: 'https://chatgpt.com/' },
-  { id: 'claude-web', name: 'Claude Web App', url: 'https://claude.ai/new' },
-  { id: 'gemini-web', name: 'Gemini Web App', url: 'https://gemini.google.com/' },
-  { id: 'grok-web', name: 'Grok Web App', url: 'https://grok.com/' },
-  { id: 'copilot-web', name: 'Copilot Web App', url: 'https://copilot.microsoft.com/' },
-]
-
-const PROVIDER_LABELS: Record<ChatProvider, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google AI',
-  grok: 'Grok',
-  mistral: 'Mistral',
-  ollama: 'Ollama',
-  lmstudio: 'LM Studio',
-  custom: 'Custom',
-  webapp: 'Web App',
-}
-
 const monoCapsClass = 'font-mono uppercase tracking-[0.14em]'
-
-function wrapMarkdown(text: string): string {
-  return `Taking this conversation history into context, answer the next questions \n\n${text}`
-}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   if (navigator.clipboard && window.isSecureContext) {
@@ -143,8 +81,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-// ─── Settings persistence ────────────────────────────────────────────────────
-
 function loadSettings(): ChatSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS
   try {
@@ -165,290 +101,8 @@ function saveSettings(settings: ChatSettings): void {
   }
 }
 
-// ─── Streaming helpers ───────────────────────────────────────────────────────
-
-async function parseErrorResponse(response: Response, defaultPrefix: string): Promise<Error> {
-  const text = await response.text().catch(() => '')
-  let errorMessage = ''
-  try {
-    const parsed = JSON.parse(text)
-    if (parsed.message) {
-      errorMessage = parsed.message
-    } else if (parsed.error) {
-      if (typeof parsed.error === 'string') {
-        errorMessage = parsed.error
-      } else if (parsed.error.message) {
-        errorMessage = parsed.error.message
-      } else {
-        errorMessage = JSON.stringify(parsed.error)
-      }
-    }
-  } catch {
-    // Keep raw text if not JSON
-  }
-
-  if (!errorMessage) {
-    errorMessage = text.slice(0, 300) || `HTTP error ${response.status}`
-  }
-
-  return new Error(`${defaultPrefix}: ${errorMessage}`)
-}
-
-async function* streamOpenAICompat(
-  url: string,
-  body: Record<string, unknown>,
-  headers: Record<string, string>,
-  signal?: AbortSignal,
-): AsyncGenerator<string> {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify(body),
-    signal,
-  })
-
-  if (!response.ok) {
-    throw await parseErrorResponse(response, 'API Error')
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('No response body')
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed || !trimmed.startsWith('data: ')) continue
-      const data = trimmed.slice(6)
-      if (data === '[DONE]') return
-
-      try {
-        const parsed = JSON.parse(data)
-        const token = parsed.choices?.[0]?.delta?.content
-        if (typeof token === 'string') yield token
-      } catch {
-        // Skip malformed SSE lines
-      }
-    }
-  }
-}
-
-async function* streamOllama(
-  baseUrl: string,
-  model: string,
-  messages: ChatMessage[],
-  signal?: AbortSignal,
-): AsyncGenerator<string> {
-  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/chat`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, messages, stream: true }),
-    signal,
-  })
-
-  if (!response.ok) {
-    throw await parseErrorResponse(response, 'Ollama Error')
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('No response body')
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      if (!line.trim()) continue
-      try {
-        const parsed = JSON.parse(line)
-        const token = parsed.message?.content
-        if (typeof token === 'string') yield token
-      } catch {
-        // Skip malformed lines
-      }
-    }
-  }
-}
-
-async function* streamGoogleAI(
-  apiKey: string,
-  model: string,
-  messages: ChatMessage[],
-  signal?: AbortSignal,
-): AsyncGenerator<string> {
-  const systemMessages = messages.filter((m) => m.role === 'system')
-  const chatMessages = messages.filter((m) => m.role !== 'system')
-
-  const contents = chatMessages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
-
-  const body: Record<string, unknown> = { contents }
-
-  if (systemMessages.length > 0) {
-    body.systemInstruction = {
-      parts: [{ text: systemMessages.map((m) => m.content).join('\n') }],
-    }
-  }
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
-
-  if (!response.ok) {
-    throw await parseErrorResponse(response, 'Google AI Error')
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('No response body')
-
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed || !trimmed.startsWith('data: ')) continue
-      const data = trimmed.slice(6)
-
-      try {
-        const parsed = JSON.parse(data)
-        const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
-        if (typeof text === 'string') yield text
-      } catch {
-        // Skip malformed SSE lines
-      }
-    }
-  }
-}
-
-async function* streamChatCompletion(
-  provider: ChatProvider,
-  model: string,
-  messages: ChatMessage[],
-  settings: ChatSettings,
-  signal?: AbortSignal,
-): AsyncGenerator<string> {
-  const providerSettings = settings[provider]
-
-  switch (provider) {
-    case 'ollama': {
-      yield* streamOllama(providerSettings.baseUrl, model, messages, signal)
-      return
-    }
-
-    case 'lmstudio':
-    case 'custom': {
-      const baseUrl = providerSettings.baseUrl.replace(/\/+$/, '')
-      const headers: Record<string, string> = {}
-      if (providerSettings.apiKey) {
-        headers['authorization'] = `Bearer ${providerSettings.apiKey}`
-      }
-      yield* streamOpenAICompat(
-        `${baseUrl}/v1/chat/completions`,
-        { model, messages, stream: true },
-        headers,
-        signal,
-      )
-      return
-    }
-
-    case 'google': {
-      yield* streamGoogleAI(providerSettings.apiKey, model, messages, signal)
-      return
-    }
-
-    case 'openai':
-    case 'anthropic':
-    case 'grok':
-    case 'mistral': {
-      // Route through server proxy for CORS
-      const body: Record<string, unknown> = {
-        provider,
-        model,
-        messages,
-        apiKey: providerSettings.apiKey,
-      }
-      yield* streamOpenAICompat(
-        '/api/chat-proxy',
-        body,
-        {},
-        signal,
-      )
-      return
-    }
-
-    case 'webapp': {
-      throw new Error('Web Apps do not support direct API streaming.')
-    }
-  }
-}
-
-// ─── Local model discovery ───────────────────────────────────────────────────
-
-async function fetchLocalModels(
-  provider: ChatProvider,
-  baseUrl: string,
-): Promise<ModelOption[]> {
-  try {
-    if (provider === 'ollama') {
-      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/tags`)
-      if (!response.ok) return []
-      const data = await response.json()
-      return (data.models ?? []).map((m: { name: string }) => ({
-        id: m.name,
-        name: m.name,
-        provider: 'ollama' as ChatProvider,
-      }))
-    }
-
-    // LM Studio / Custom: OpenAI-compatible /v1/models
-    const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/v1/models`)
-    if (!response.ok) return []
-    const data = await response.json()
-    return (data.data ?? []).map((m: { id: string }) => ({
-      id: m.id,
-      name: m.id,
-      provider,
-    }))
-  } catch {
-    return []
-  }
-}
-
-// ─── Conversation-to-messages converter ──────────────────────────────────────
-
-function conversationMarkdownToMessages(markdown: string): ChatMessage[] {
-  const messages: ChatMessage[] = []
+function conversationMarkdownToMessages(markdown: string): { role: 'system' | 'user' | 'assistant'; content: string }[] {
+  const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = []
   const sections = markdown.split(/^## /m).slice(1)
 
   for (const section of sections) {
@@ -473,15 +127,11 @@ function conversationMarkdownToMessages(markdown: string): ChatMessage[] {
   return messages
 }
 
-// ─── Component props ─────────────────────────────────────────────────────────
-
 interface ChatContinuationProps {
   markdown: string
   disableCollapse?: boolean
   className?: string
 }
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 export function ChatContinuation({ markdown, disableCollapse = false, className }: ChatContinuationProps) {
   const [isExpanded, setIsExpanded] = useState(disableCollapse)
@@ -492,6 +142,8 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [editableContext, setEditableContext] = useState('')
+  const [contextEdited, setContextEdited] = useState(false)
 
   // Auto-dismiss error toast after 7 seconds
   useEffect(() => {
@@ -501,7 +153,8 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
     }, 7000)
     return () => clearTimeout(timer)
   }, [error])
-  const [localModels, setLocalModels] = useState<ModelOption[]>([])
+
+  const [localModels, setLocalModels] = useState<{ id: string; name: string; provider: ChatProvider }[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<Record<ChatProvider, 'idle' | 'testing' | 'ok' | 'fail'>>({
     openai: 'idle',
@@ -570,13 +223,13 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
   }, [continuationMessages, streamingContent])
 
   // Get available models for current provider
-  const availableModels: ModelOption[] =
+  const availableModels =
     settings.selectedProvider === 'ollama' ||
     settings.selectedProvider === 'lmstudio' ||
     settings.selectedProvider === 'custom'
       ? localModels.filter((m) => m.provider === settings.selectedProvider)
       : settings.selectedProvider === 'webapp'
-      ? WEB_APPS.map(w => ({ id: w.id, name: w.name, provider: 'webapp' }))
+      ? WEB_APPS.map(w => ({ id: w.id, name: w.name, provider: 'webapp' as ChatProvider }))
       : CLOUD_MODELS.filter((m) => m.provider === settings.selectedProvider)
 
   const selectedModelName =
@@ -590,10 +243,10 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
   async function handleFetchModels(provider: ChatProvider) {
     setIsFetchingModels(true)
     const baseUrl = settings[provider].baseUrl
-    const models = await fetchLocalModels(provider, baseUrl)
+    const models = await libFetchLocalModels(provider as any, baseUrl)
     setLocalModels((prev) => [
       ...prev.filter((m) => m.provider !== provider),
-      ...models,
+      ...models.map(m => ({ id: m.id, name: m.name, provider: m.provider })),
     ])
     if (models.length > 0 && (!settings.selectedModel || settings.selectedProvider !== provider)) {
       updateSettings({ selectedModel: models[0]!.id, selectedProvider: provider })
@@ -650,14 +303,14 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
 
     // Build full message history
     const historyMessages = conversationMarkdownToMessages(markdown)
-    const continuationChatMessages: ChatMessage[] = continuationMessages.map((m) => ({
+    const continuationChatMessages = continuationMessages.map((m) => ({
       role: m.role,
       content: m.content,
     }))
-    const allMessages: ChatMessage[] = [
+    const allMessages = [
       ...historyMessages,
       ...continuationChatMessages,
-      { role: 'user', content: trimmed },
+      { role: 'user' as const, content: trimmed },
     ]
 
     setIsStreaming(true)
@@ -668,13 +321,22 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
 
     try {
       let fullContent = ''
-      const stream = streamChatCompletion(
-        settings.selectedProvider,
-        settings.selectedModel,
-        allMessages,
-        settings,
-        controller.signal,
-      )
+
+      if (settings.selectedProvider === 'webapp') {
+        throw new Error('Web Apps do not support direct API streaming.')
+      }
+
+      const stream = libStreamChatCompletion({
+        provider: settings.selectedProvider as any,
+        model: settings.selectedModel,
+        messages: allMessages,
+        providerConfig: {
+          apiKey: settings[provider].apiKey,
+          baseUrl: settings[provider].baseUrl,
+          enabled: settings[provider].enabled,
+        },
+        signal: controller.signal,
+      })
 
       for await (const token of stream) {
         fullContent += token
@@ -719,25 +381,31 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
   }
 
   const fullMarkdownContext = getFullConversationMarkdown()
-  const promptText = wrapMarkdown(fullMarkdownContext)
-  const promptLength = promptText.length
-  const isTooLong = promptLength > 1000
+  const promptLength = fullMarkdownContext.length
+  const isTooLong = promptLength > 8000
+
+  // Keep editableContext in sync when the source markdown changes, unless user has edited it
+  useEffect(() => {
+    if (!contextEdited) {
+      setEditableContext(fullMarkdownContext)
+    }
+  }, [fullMarkdownContext, contextEdited])
 
   async function handleWebappRedirect() {
-    const copied = await copyToClipboard(promptText)
-    
+    const copied = await copyToClipboard(editableContext)
+
     // Determine provider redirect URL
     let redirectUrl = 'https://chatgpt.com/'
     if (settings.selectedModel === 'chatgpt-web') {
-      redirectUrl = isTooLong ? 'https://chatgpt.com/' : `https://chatgpt.com/?prompt=${encodeURIComponent(promptText)}`
+      redirectUrl = isTooLong ? 'https://chatgpt.com/' : `https://chatgpt.com/?prompt=${encodeURIComponent(editableContext)}`
     } else if (settings.selectedModel === 'claude-web') {
-      redirectUrl = isTooLong ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encodeURIComponent(promptText)}`
+      redirectUrl = isTooLong ? 'https://claude.ai/new' : `https://claude.ai/new?q=${encodeURIComponent(editableContext)}`
     } else if (settings.selectedModel === 'gemini-web') {
-      redirectUrl = isTooLong ? 'https://gemini.google.com/' : `https://gemini.google.com/?prompt=${encodeURIComponent(promptText)}`
+      redirectUrl = isTooLong ? 'https://gemini.google.com/' : `https://gemini.google.com/?prompt=${encodeURIComponent(editableContext)}`
     } else if (settings.selectedModel === 'grok-web') {
-      redirectUrl = isTooLong ? 'https://grok.com/' : `https://grok.com/?prompt=${encodeURIComponent(promptText)}`
+      redirectUrl = isTooLong ? 'https://grok.com/' : `https://grok.com/?prompt=${encodeURIComponent(editableContext)}`
     } else if (settings.selectedModel === 'copilot-web') {
-      redirectUrl = isTooLong ? 'https://copilot.microsoft.com/' : `https://copilot.microsoft.com/?prompt=${encodeURIComponent(promptText)}`
+      redirectUrl = isTooLong ? 'https://copilot.microsoft.com/' : `https://copilot.microsoft.com/?prompt=${encodeURIComponent(editableContext)}`
     }
 
     if (copied) {
@@ -1093,19 +761,41 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
               </p>
             </div>
 
-            {/* Prompt preview container */}
+            {/* Editable context prompt */}
             <div className="w-full max-w-md text-left mt-2">
-              <span className="text-[0.68rem] font-mono font-bold uppercase tracking-wider text-ink-soft mb-1 block">Context Prompt Preview</span>
-              <div className="relative rounded-lg border border-border-contrast bg-paper-solid-inset p-3 max-h-36 overflow-y-auto w-full">
-                <pre className="font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal">
-                  {promptText}
-                </pre>
-                <div className="absolute bottom-2 right-2">
-                  <span className="text-[0.58rem] font-mono bg-paper-solid border border-border-contrast rounded px-1.5 py-0.5 text-ink-soft">
-                    {promptLength.toLocaleString()} chars
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[0.68rem] font-mono font-bold uppercase tracking-wider text-ink-soft">Context Prompt</span>
+                <div className="flex items-center gap-2">
+                  {contextEdited && (
+                    <span className="text-[0.6rem] font-mono text-amber-500 font-bold uppercase tracking-wide">Edited</span>
+                  )}
+                  <span className="text-[0.6rem] font-mono bg-paper-solid border border-border-contrast rounded px-1.5 py-0.5 text-ink-soft">
+                    {editableContext.length.toLocaleString()} chars
                   </span>
+                  {contextEdited && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditableContext(fullMarkdownContext)
+                        setContextEdited(false)
+                      }}
+                      className="text-[0.6rem] font-mono font-bold uppercase tracking-wide text-ink-soft hover:text-ink border border-border-contrast rounded px-1.5 py-0.5 bg-paper-solid hover:bg-paper-solid-inset transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
               </div>
+              <textarea
+                value={editableContext}
+                onChange={(e) => {
+                  setEditableContext(e.target.value)
+                  setContextEdited(true)
+                }}
+                rows={8}
+                spellCheck={false}
+                className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 min-h-[8rem] max-h-64"
+              />
             </div>
 
             <button
@@ -1169,7 +859,7 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
                       <div className="markdown-preview leading-[1.68]">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
-                          rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                          rehypePlugins={[rehypeHighlight]}
                           components={{
                             a: ({ node: _node, ...props }) => (
                               <a {...props} rel="noreferrer" target="_blank" />
@@ -1199,7 +889,7 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
                     <div className="markdown-preview leading-[1.68]">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                        rehypePlugins={[rehypeHighlight]}
                         components={{
                           a: ({ node: _node, ...props }) => (
                             <a {...props} rel="noreferrer" target="_blank" />
@@ -1220,10 +910,12 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
                       Thinking
                     </span>
                   </div>
-                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated px-4 py-3 shadow-sm flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_infinite] rounded-full bg-teal" />
-                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_0.15s_infinite] rounded-full bg-teal" />
-                    <span className="inline-block h-2 w-2 animate-[bounce_1s_ease-in-out_0.3s_infinite] rounded-full bg-teal" />
+                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated p-4 max-w-[85%]">
+                    <div className="flex gap-1.5">
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-teal/60" style={{ animationDelay: '0ms' }} />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-teal/60" style={{ animationDelay: '150ms' }} />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-teal/60" style={{ animationDelay: '300ms' }} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1231,27 +923,27 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <div className="px-4 py-3 bg-paper-solid border-t border-border-contrast">
+            {/* Input bar */}
+            <div className="bg-paper-solid-elevated px-5 py-4">
               <div className="flex items-end gap-2">
                 <textarea
                   ref={inputRef}
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type a message to continue conversation..."
+                  placeholder={`Ask ${selectedModelName || 'the model'} a question...`}
                   rows={1}
-                  className="min-h-[2.5rem] max-h-[8rem] flex-1 resize-none rounded-lg border border-border-contrast bg-paper-solid-inset px-4 py-2.5 text-[0.9rem] text-ink outline-none transition-all placeholder:text-ink-soft focus:border-teal focus:ring-2 focus:ring-teal/20 disabled:opacity-50"
-                  disabled={isStreaming}
+                  className="min-h-[2.8rem] max-h-32 flex-1 resize-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3.5 py-2.5 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
                 />
+
                 {isStreaming ? (
                   <button
                     type="button"
                     onClick={handleStop}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-600 text-white shadow-sm hover:bg-rose-700 hover:shadow transition-colors"
-                    title="Stop generating"
+                    className="flex h-[2.8rem] w-[2.8rem] shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                    title="Stop generation"
                   >
-                    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24">
                       <rect x="6" y="6" width="12" height="12" rx="2" className="fill-current" />
                     </svg>
                   </button>
@@ -1260,11 +952,11 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
                     type="button"
                     onClick={handleSend}
                     disabled={!inputValue.trim()}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-teal/20 bg-teal text-white shadow-sm hover:enabled:bg-teal-hover hover:enabled:shadow transition-all disabled:opacity-30"
+                    className="flex h-[2.8rem] w-[2.8rem] shrink-0 items-center justify-center rounded-lg bg-teal text-white hover:bg-teal-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Send message"
                   >
-                    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
-                      <path d="M12 19V5M5 12l7-7 7 7" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
+                    <svg className="h-4 w-4" viewBox="0 0 24 24">
+                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round" />
                     </svg>
                   </button>
                 )}
@@ -1273,49 +965,24 @@ export function ChatContinuation({ markdown, disableCollapse = false, className 
           </>
         )}
       </div>
-      {error && (
-        <div
-          aria-live="assertive"
-          className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-50 grid w-[min(28rem,calc(100vw-2rem))] gap-2.5 animate-slide-up"
-        >
-          <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-rose-200 bg-rose-50/95 dark:bg-rose-950/90 dark:border-rose-900/50 text-rose-800 dark:text-rose-200 p-3.5 pr-3 pl-4 shadow-lg backdrop-blur-md">
-            <div className="grid gap-[0.2rem]">
-              <p className={cn(monoCapsClass, 'font-mono text-[0.68rem] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400')}>
-                Connection Error
-              </p>
-              <p className="text-[0.85rem] leading-[1.5] font-medium">{error}</p>
-            </div>
-            <button
-              aria-label="Dismiss error"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-line bg-paper/50 hover:bg-paper-raised text-ink-soft hover:text-ink transition-colors animate-fade-in"
-              type="button"
-              onClick={() => setError(null)}
-            >
-              <span aria-hidden="true" className="inline-block rotate-45 text-base leading-none">
-                +
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
     </>
   )
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
 function ConnectionBadge({ status }: { status: 'idle' | 'testing' | 'ok' | 'fail' }) {
   if (status === 'idle') return null
 
-  const config = {
-    testing: { label: 'Testing...', bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-700 dark:text-amber-400' },
-    ok: { label: 'Connected', bg: 'bg-emerald-500/10 border-emerald-500/30', text: 'text-emerald-700 dark:text-emerald-400' },
-    fail: { label: 'Failed', bg: 'bg-rose-500/10 border-rose-500/30', text: 'text-rose-700 dark:text-rose-400' },
-  }[status]
-
   return (
-    <span className={cn('rounded px-2 py-0.5 font-mono text-[0.66rem] uppercase tracking-wider border font-bold', config.bg, config.text)}>
-      {config.label}
+    <span className={cn(
+      'inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[0.62rem] font-mono font-bold uppercase border',
+      status === 'testing' && 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+      status === 'ok' && 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+      status === 'fail' && 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30',
+    )}>
+      {status === 'testing' && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />}
+      {status === 'ok' && 'Connected'}
+      {status === 'fail' && 'Failed'}
+      {status === 'testing' && 'Testing...'}
     </span>
   )
 }

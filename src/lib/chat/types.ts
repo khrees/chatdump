@@ -5,7 +5,7 @@ export interface ChatMessage {
   role: 'assistant' | 'system' | 'user'
 }
 
-export type ChatProvider = 'anthropic' | 'custom' | 'google' | 'grok' | 'lmstudio' | 'mistral' | 'ollama' | 'openai'
+export type ChatProvider = 'anthropic' | 'custom' | 'google' | 'grok' | 'lmstudio' | 'mistral' | 'ollama' | 'openai' | 'webapp'
 
 export type ModelTier = 'best' | 'cheap'
 
@@ -36,4 +36,16 @@ export interface ChatSession {
   model: string
   provider: ChatProvider
   sourceConversation: NormalizedConversation | null
+}
+
+export interface ProviderSettings {
+  apiKey: string
+  baseUrl: string
+  enabled: boolean
+}
+
+export interface WebAppOption {
+  id: string
+  name: string
+  url: string
 }

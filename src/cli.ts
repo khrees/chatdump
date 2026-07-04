@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { writeFile } from 'node:fs/promises'
 import process from 'node:process'
-import { convertShareUrlToMarkdown } from './lib/convert'
+import { convertShareUrlToMarkdown } from './lib/extract'
 import { getErrorMessage } from './lib/errors'
 
 type ParsedArgs = {

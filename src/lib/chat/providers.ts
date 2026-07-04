@@ -1,4 +1,4 @@
-import type { ChatProvider, ModelInfo } from './types'
+import type { ChatProvider, ModelInfo, WebAppOption } from './types'
 
 export interface ProviderEntry {
   defaultBaseUrl?: string
@@ -6,6 +6,47 @@ export interface ProviderEntry {
   models: ModelInfo[]
   name: string
   requiresProxy: boolean
+}
+
+export interface ModelOption {
+  id: string
+  name: string
+  provider: ChatProvider
+}
+
+export const CLOUD_MODELS: ModelOption[] = [
+  { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', provider: 'openai' },
+  { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'openai' },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', provider: 'openai' },
+  { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
+  { id: 'claude-4.5-haiku', name: 'Claude 4.5 Haiku', provider: 'anthropic' },
+  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'google' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'google' },
+  { id: 'grok-4.3', name: 'Grok 4.3', provider: 'grok' },
+  { id: 'grok-4.1-fast', name: 'Grok 4.1 Fast', provider: 'grok' },
+  { id: 'mistral-large-latest', name: 'Mistral Large', provider: 'mistral' },
+  { id: 'mistral-small-latest', name: 'Mistral Small', provider: 'mistral' },
+]
+
+export const WEB_APPS: WebAppOption[] = [
+  { id: 'chatgpt-web', name: 'ChatGPT Web App', url: 'https://chatgpt.com/' },
+  { id: 'claude-web', name: 'Claude Web App', url: 'https://claude.ai/new' },
+  { id: 'gemini-web', name: 'Gemini Web App', url: 'https://gemini.google.com/' },
+  { id: 'grok-web', name: 'Grok Web App', url: 'https://grok.com/' },
+  { id: 'copilot-web', name: 'Copilot Web App', url: 'https://copilot.microsoft.com/' },
+]
+
+export const PROVIDER_LABELS: Record<ChatProvider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  google: 'Google AI',
+  grok: 'Grok',
+  mistral: 'Mistral',
+  ollama: 'Ollama',
+  lmstudio: 'LM Studio',
+  custom: 'Custom',
+  webapp: 'Web App',
 }
 
 export const MODEL_PROVIDERS: Record<ChatProvider, ProviderEntry> = {
@@ -67,6 +108,11 @@ export const MODEL_PROVIDERS: Record<ChatProvider, ProviderEntry> = {
   },
   custom: {
     name: 'Custom',
+    requiresProxy: false,
+    models: [],
+  },
+  webapp: {
+    name: 'Web App',
     requiresProxy: false,
     models: [],
   },

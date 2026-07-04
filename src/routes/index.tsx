@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
 import rehypeHighlight from 'rehype-highlight'
 import { useDeferredValue, useEffect, useRef, useState, startTransition, useMemo } from 'react'
 import { Button } from '../components/ui/button'
@@ -171,21 +170,59 @@ function removeRecentUrl(url: string): void {
 const monoCapsClass = 'font-mono uppercase tracking-[0.14em]'
 const persistedHomeStateKey = 'chatdump.home-state.v1'
 
-function hasMarkdownTable(markdown: string): boolean {
-  return splitMarkdownForPreview(markdown).some(
-    (segment) => segment.kind === 'table',
-  )
-}
+const useCases = [
+  {
+    id: 1,
+    title: 'Export AI chat conversations',
+    description:
+      'Export any AI chat to readable Markdown \u2014 no more copy-pasting messages manually. Copy, or download the file.',
+  },
+  {
+    id: 2,
+    title: 'Continue conversations elsewhere',
+    description:
+      'Use the Share dropdown to copy a conversation and continue it in ChatGPT, Claude, or any other AI chat. Get a different perspective on the same context.',
+  },
+  {
+    id: 3,
+    title: 'Works with any AI platform',
+    description:
+      'One tool for ChatGPT, Claude, Copilot, Gemini, and Grok. No need to switch between different export methods.',
+  },
+]
 
 function renderInlineCell(value: string): React.ReactNode {
-  let result = value
+  const segments: React.ReactNode[] = []
+  let remaining = value
+  let key = 0
 
-  result = result.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  result = result.replace(/\*([^*]+)\*/g, '<em>$1</em>')
-  result = result.replace(/`([^`]+)`/g, '<code>$1</code>')
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" rel="noreferrer" target="_blank">$1</a>')
+  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/
+  let match: RegExpExecArray | null
 
-  return <span dangerouslySetInnerHTML={{ __html: result }} />
+  while ((match = pattern.exec(remaining)) !== null) {
+    const before = remaining.slice(0, match.index)
+    if (before) segments.push(<span key={key++}>{before}</span>)
+
+    const token = match[1]
+    if (token.startsWith('**') && token.endsWith('**')) {
+      segments.push(<strong key={key++}>{token.slice(2, -2)}</strong>)
+    } else if (token.startsWith('*') && token.endsWith('*') && !token.startsWith('**')) {
+      segments.push(<em key={key++}>{token.slice(1, -1)}</em>)
+    } else if (token.startsWith('`') && token.endsWith('`')) {
+      segments.push(<code key={key++}>{token.slice(1, -1)}</code>)
+    } else if (token.startsWith('[')) {
+      const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
+      if (linkMatch) {
+        segments.push(<a key={key++} href={linkMatch[2]} rel="noreferrer" target="_blank">{linkMatch[1]}</a>)
+      }
+    }
+
+    remaining = remaining.slice(match.index + token.length)
+  }
+
+  if (remaining) segments.push(<span key={key++}>{remaining}</span>)
+
+  return segments.length > 0 ? <span>{segments}</span> : value
 }
 
 function readPersistedHomeState(): PersistedHomeState | null {
@@ -221,7 +258,7 @@ function readPersistedHomeState(): PersistedHomeState | null {
       : []
     const conversation = parsedState.conversation || null
 
-    if (!url && !markdown && warnings.length === 0 && outputMode === 'markdown') {
+    if (!url && !markdown && warnings.length === 0 && outputMode === 'preview') {
       return null
     }
 
@@ -259,7 +296,7 @@ const convertShare = createServerFn({ method: 'POST' })
     url: data.url.trim(),
   }))
   .handler(async ({ data }) => {
-    const { convertShareUrlToMarkdown } = await import('../lib/convert')
+    const { convertShareUrlToMarkdown } = await import('../lib/extract')
     const { ChatdumpError } = await import('../lib/errors')
     const exportedAt = new Date()
 
@@ -341,13 +378,14 @@ function Home() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
-  const [outputMode, setOutputMode] = useState<'markdown' | 'preview' | 'plain'>('markdown')
+  const [outputMode, setOutputMode] = useState<'markdown' | 'preview' | 'plain'>('preview')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [hasHydratedState, setHasHydratedState] = useState(false)
   const [recentUrls, setRecentUrls] = useState<string[]>([])
   const [searchRecent, setSearchRecent] = useState('')
   const [isWhyModalOpen, setIsWhyModalOpen] = useState(false)
+  const [showAdvancedModal, setShowAdvancedModal] = useState(false)
   const urlInputRef = useRef<HTMLInputElement | null>(null)
   const outputSectionRef = useRef<HTMLElement | null>(null)
   const outputBodyRef = useRef<HTMLElement | null>(null)
@@ -388,26 +426,6 @@ function Home() {
   const deferredMarkdown = useDeferredValue(processedMarkdown)
   const hasResult = deferredMarkdown.length > 0
 
-  const useCases = [
-    {
-      id: 1,
-      title: 'Export AI chat conversations',
-      description:
-        'Export any AI chat to readable Markdown — no more copy-pasting messages manually. Copy, or download the file.',
-    },
-    {
-      id: 2,
-      title: 'Continue conversations elsewhere',
-      description:
-        'Use the Share dropdown to copy a conversation and continue it in ChatGPT, Claude, or any other AI chat. Get a different perspective on the same context.',
-    },
-    {
-      id: 3,
-      title: 'Works with any AI platform',
-      description:
-        'One tool for ChatGPT, Claude, Copilot, Gemini, and Grok. No need to switch between different export methods.',
-    },
-  ]
   const isRenderedPreview = outputMode === 'preview'
   const isPlainText = outputMode === 'plain'
   const lineCount = hasResult ? deferredMarkdown.split('\n').length : 0
@@ -483,7 +501,6 @@ function Home() {
           if (result.conversation) {
             setConversation(result.conversation)
           }
-          setOutputMode(hasMarkdownTable(result.markdown) ? 'preview' : 'markdown')
           setWarnings(result.warnings)
         })
         .catch((cause) => {
@@ -515,7 +532,7 @@ function Home() {
     setConversation(null)
     setWarnings([])
     setError(null)
-    setOutputMode('markdown')
+    setOutputMode('preview')
     setCopyState('idle')
     clearToasts()
     previousFeedbackRef.current = {
@@ -529,6 +546,8 @@ function Home() {
     })
   }
 
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
   async function handleCopy() {
     if (!displayMarkdown) {
       return
@@ -537,7 +556,8 @@ function Home() {
     try {
       await navigator.clipboard.writeText(displayMarkdown)
       setCopyState('copied')
-      window.setTimeout(() => setCopyState('idle'), 1600)
+      clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopyState('idle'), 1600)
     } catch {
       setCopyState('error')
     }
@@ -570,7 +590,7 @@ function Home() {
     setMarkdown('')
     setConversation(null)
     setWarnings([])
-    setOutputMode('markdown')
+    setOutputMode('preview')
     setError(null)
     urlInputRef.current?.focus()
   }
@@ -606,6 +626,7 @@ function Home() {
         window.clearTimeout(timeoutId)
       })
       toastTimeoutsRef.current.clear()
+      clearTimeout(copyTimerRef.current)
     }
   }, [])
 
@@ -647,7 +668,7 @@ function Home() {
       return
     }
 
-    if (!url && !markdown && warnings.length === 0 && outputMode === 'markdown') {
+    if (!url && !markdown && warnings.length === 0 && outputMode === 'preview') {
       clearPersistedHomeState()
       return
     }
@@ -993,10 +1014,10 @@ function Home() {
 
           {hasResult ? (
             <div className="grid gap-6 animate-fade-in">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div className="grid grid-cols-1 gap-6 items-start">
                 {/* Left Column: Exported Chat Content (Occupies 8/12 or 9/12 cols) */}
                 <section
-                  className="lg:col-span-8 xl:col-span-9 panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4"
+                  className="panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4"
                   ref={outputSectionRef}
                 >
                   {/* Sticky floating toolbar */}
@@ -1013,12 +1034,9 @@ function Home() {
                         Back
                       </button>
                       
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-ink uppercase">Export Ready</span>
-                        <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/20">
-                          {lineCount} L • {characterCount} C
-                        </span>
-                      </div>
+                      <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/20">
+                        {lineCount} L • {characterCount} C
+                      </span>
                     </div>
 
                     {/* Tabs */}
@@ -1042,6 +1060,19 @@ function Home() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
+                      {/* Advanced Options trigger */}
+                      <button
+                        type="button"
+                        aria-label="Advanced Options"
+                        onClick={() => setShowAdvancedModal(true)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+                      >
+                        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        Options
+                      </button>
+
                       <Button
                         aria-label={copyLabel}
                         className="min-h-8 h-8 px-3 rounded-md"
@@ -1112,7 +1143,7 @@ function Home() {
                               <ReactMarkdown
                                 key={`markdown-${index}`}
                                 remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                                rehypePlugins={[rehypeHighlight]}
                                 components={{
                                   a: ({ node: _node, ...props }) => (
                                     <a {...props} rel="noreferrer" target="_blank" />
@@ -1160,6 +1191,20 @@ function Home() {
                                       </div>
                                     )
                                   },
+                                  h2: ({ node: _node, children, ...props }) => {
+                                    const text = Array.isArray(children)
+                                      ? children.map((c) => (typeof c === 'string' ? c : '')).join('')
+                                      : typeof children === 'string' ? children : ''
+                                    const lower = text.toLowerCase()
+                                    const role = lower.startsWith('user')
+                                      ? 'user'
+                                      : lower.startsWith('assistant')
+                                      ? 'assistant'
+                                      : lower.startsWith('system')
+                                      ? 'system'
+                                      : undefined
+                                    return <h2 {...props} data-role={role}>{children}</h2>
+                                  },
                                   hr: ({ node: _node, ...props }) => (
                                     <hr {...props} />
                                   ),
@@ -1200,87 +1245,7 @@ function Home() {
                   </div>
                 </section>
 
-                {/* Right Column: Advanced Options (Occupies 3/12 or 4/12 cols) */}
-                <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-6 lg:sticky lg:top-4 h-auto">
-                  {/* Advanced Options panel */}
-                  <div className="rounded-xl border border-border-contrast bg-paper-solid-elevated shadow-lg overflow-hidden flex flex-col animate-fade-in">
-                    <div className="flex items-center gap-3 border-b border-border-contrast px-5 py-3.5 bg-paper-solid">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.85rem]">
-                        <svg className="h-4.5 w-4.5 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                        </svg>
-                      </span>
-                      <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
-                        Advanced Options
-                      </span>
-                    </div>
-                    <div className="p-5 bg-paper-solid flex flex-col gap-4">
-                      {/* Metadata Header option */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={includeMetadata}
-                          onChange={(e) => setIncludeMetadata(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Include Metadata Header</span>
-                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
-                            Add the source URL, export date, and chat creator to the top of the file.
-                          </span>
-                        </div>
-                      </label>
 
-                      {/* Include System Messages option */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={includeSystemMessages}
-                          onChange={(e) => setIncludeSystemMessages(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Include System Prompts</span>
-                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
-                            Export any internal developer instructions or system roles from the session.
-                          </span>
-                        </div>
-                      </label>
-
-                      {/* Remove Emojis option */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={removeEmojis}
-                          onChange={(e) => setRemoveEmojis(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Clean Emojis</span>
-                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
-                            Strip all graphical emojis from the output text for a cleaner documentation format.
-                          </span>
-                        </div>
-                      </label>
-
-                      {/* Clean HTML option */}
-                      <label className="flex items-start gap-3 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={cleanHtml}
-                          onChange={(e) => setCleanHtml(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20"
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-ink group-hover:text-teal transition-colors">Strip HTML Tags</span>
-                          <span className="text-[0.7rem] text-ink-soft mt-0.5 leading-normal">
-                            Remove raw HTML tags and comments to leave only pure Markdown syntax.
-                          </span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Bottom: Continuation Chat (collapsible as before) */}
@@ -1291,6 +1256,125 @@ function Home() {
           ) : null}
         </div>
       </div>
+
+      {/* ── Advanced Options Modal ── */}
+      {showAdvancedModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Advanced Options"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowAdvancedModal(false)}
+          />
+
+          {/* Panel */}
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-border-contrast bg-paper-solid-elevated shadow-2xl overflow-hidden animate-fade-in">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 border-b border-border-contrast px-6 py-4 bg-paper-solid">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </span>
+                <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">Advanced Options</span>
+              </div>
+              <button
+                type="button"
+                aria-label="Close Advanced Options"
+                onClick={() => setShowAdvancedModal(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Options */}
+            <div className="p-6 flex flex-col gap-5">
+              <label className="flex items-start gap-4 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  id="opt-metadata"
+                  checked={includeMetadata}
+                  onChange={(e) => setIncludeMetadata(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">Include Metadata Header</span>
+                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
+                    Add the source URL, export date, and chat creator to the top of the file.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-4 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  id="opt-system"
+                  checked={includeSystemMessages}
+                  onChange={(e) => setIncludeSystemMessages(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">Include System Prompts</span>
+                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
+                    Export any internal developer instructions or system roles from the session.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-4 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  id="opt-emojis"
+                  checked={removeEmojis}
+                  onChange={(e) => setRemoveEmojis(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">Clean Emojis</span>
+                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
+                    Strip all graphical emojis from the output text for a cleaner documentation format.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-4 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  id="opt-html"
+                  checked={cleanHtml}
+                  onChange={(e) => setCleanHtml(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">Strip HTML Tags</span>
+                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
+                    Remove raw HTML tags and comments to leave only pure Markdown syntax.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 border-t border-border-contrast px-6 py-4 bg-paper-solid">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedModal(false)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-paper px-4 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

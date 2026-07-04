@@ -254,6 +254,28 @@ body {
   padding-top: 1rem;
 }
 
+/* ── Role-coloured speaker headings ── */
+.markdown-preview h2[data-role="user"] {
+  color: hsl(38 95% 62%);          /* warm amber */
+  border-top-color: hsl(38 95% 62% / 0.25);
+  padding-left: 0.75rem;
+  border-left: 3px solid hsl(38 95% 62% / 0.6);
+}
+
+.markdown-preview h2[data-role="assistant"] {
+  color: hsl(174 60% 52%);         /* teal */
+  border-top-color: hsl(174 60% 52% / 0.25);
+  padding-left: 0.75rem;
+  border-left: 3px solid hsl(174 60% 52% / 0.6);
+}
+
+.markdown-preview h2[data-role="system"] {
+  color: hsl(260 40% 65%);         /* soft purple */
+  border-top-color: hsl(260 40% 65% / 0.2);
+  padding-left: 0.75rem;
+  border-left: 3px solid hsl(260 40% 65% / 0.5);
+}
+
 .markdown-preview h3,
 .markdown-preview h4 {
   font-size: 0.98rem;

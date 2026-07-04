@@ -35,7 +35,9 @@ export function appendAssistantMessage(session: ChatSession, content: string): C
 
 export function generateSessionId(): string {
   const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).slice(2, 10)
+  const random = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().split('-')[0]
+    : Math.random().toString(36).slice(2, 10)
   return `session-${timestamp}-${random}`
 }
 

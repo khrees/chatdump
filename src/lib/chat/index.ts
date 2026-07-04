@@ -6,16 +6,21 @@ export type {
   ModelInfo,
   ModelTier,
   ProviderConfig,
+  ProviderSettings,
+  WebAppOption,
 } from './types'
 
 export {
+  CLOUD_MODELS,
   getAllModels,
   getDefaultModel,
   getProviderModels,
   MODEL_PROVIDERS,
+  PROVIDER_LABELS,
+  WEB_APPS,
 } from './providers'
 
-export type { ProviderEntry } from './providers'
+export type { ModelOption, ProviderEntry } from './providers'
 
 export {
   appendAssistantMessage,
@@ -27,4 +32,5 @@ export {
 export {
   fetchLocalModels,
   streamChatCompletion,
+  streamOpenAICompat,
 } from './client'

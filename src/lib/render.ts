@@ -11,29 +11,17 @@ function formatDateTime(dateOrString: Date | string): string {
     if (Number.isNaN(date.getTime())) {
       return String(dateOrString)
     }
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ]
-    const yyyy = date.getUTCFullYear()
-    const month = months[date.getUTCMonth()]
-    const dd = date.getUTCDate()
-    let hh = date.getUTCHours()
-    const min = String(date.getUTCMinutes()).padStart(2, '0')
-    const ampm = hh >= 12 ? 'PM' : 'AM'
-    hh = hh % 12
-    hh = hh ? hh : 12
-    return `${month} ${dd}, ${yyyy} at ${hh}:${min} ${ampm} UTC`
+    return date.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC',
+      year: 'numeric',
+    }) + ' at ' + date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'UTC',
+      timeZoneName: 'short',
+    })
   } catch {
     return String(dateOrString)
   }
@@ -99,9 +87,6 @@ function renderHeading(message: NormalizedMessage): string {
 function renderBlock(block: ContentBlock, sourceUrl: string): string {
   switch (block.kind) {
     case 'text':
-      if (block.text.includes('|')) {
-        console.log('[chatdump:debug] Text block with | :', block.text.slice(0, 100) + '...')
-      }
       return block.text.trim()
     case 'code':
       return renderCodeBlock(block.language, block.code)

@@ -12,7 +12,7 @@ interface ShareDropdownProps {
 type CopyStatus = 'idle' | 'success' | 'error'
 
 function wrapMarkdown(text: string): string {
-  return `Taking this conversation history into context, answer the next questions \n\n${text}`
+  return text
 }
 
 function buildPromptUrl(providerId: string, prompt: string): string {
@@ -95,7 +95,7 @@ export function ShareDropdown({
 
   const promptText = markdown ? wrapMarkdown(markdown) : ''
   const promptLength = promptText.length
-  const isTooLong = promptLength > 1000
+  const isTooLong = promptLength > 8000
 
   useEffect(() => {
     if (!isOpen) return
@@ -365,7 +365,7 @@ export function ShareDropdown({
                     
                     <div className="absolute right-3 top-3">
                       <span className={cn("text-[0.58rem] font-mono font-bold uppercase px-1.5 py-0.5 rounded", brandBadge)}>
-                        Online
+                        {provider.name}
                       </span>
                     </div>
                   </div>

@@ -5,6 +5,11 @@ export async function* streamChatCompletion(
   options: ChatCompletionOptions,
 ): AsyncGenerator<string, void, void> {
   const { provider, model, messages, providerConfig, signal } = options
+
+  if (provider === 'webapp') {
+    throw new Error('Web Apps do not support direct API streaming.')
+  }
+
   const entry = MODEL_PROVIDERS[provider]
 
   if (provider === 'ollama') {
@@ -67,7 +72,7 @@ async function* streamOllama(
   })
 
   if (!response.ok) {
-    throw new Error(`Ollama error: ${response.status} ${response.statusText}`)
+    throw new Error(await parseErrorResponseText(response, `Ollama error (${response.status})`))
   }
 
   const reader = response.body!.getReader()
@@ -125,7 +130,7 @@ async function* streamGoogle(
   })
 
   if (!response.ok) {
-    throw new Error(`Google AI error: ${response.status} ${response.statusText}`)
+    throw new Error(await parseErrorResponseText(response, `Google AI error (${response.status})`))
   }
 
   yield* parseSSEStream(response, (parsed: unknown) => {
@@ -167,7 +172,7 @@ async function* streamViaProxy(
   })
 
   if (!response.ok) {
-    throw new Error(`Proxy error: ${response.status} ${response.statusText}`)
+    throw new Error(await parseErrorResponseText(response, `Proxy error (${response.status})`))
   }
 
   yield* parseSSEStream(response, (parsed: unknown) => {
@@ -176,6 +181,54 @@ async function* streamViaProxy(
     }
     return data.choices?.[0]?.delta?.content ?? ''
   })
+}
+
+export async function* streamOpenAICompat(
+  url: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): AsyncGenerator<string> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(await parseErrorResponseText(response, 'API Error'))
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || !trimmed.startsWith('data: ')) continue
+      const data = trimmed.slice(6)
+      if (data === '[DONE]') return
+
+      try {
+        const parsed = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }
+        const token = parsed.choices?.[0]?.delta?.content
+        if (typeof token === 'string') yield token
+      } catch {
+        // Skip malformed SSE lines
+      }
+    }
+  }
 }
 
 async function* streamOpenAICompatible(
@@ -198,7 +251,7 @@ async function* streamOpenAICompatible(
   })
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`)
+    throw new Error(await parseErrorResponseText(response, `API error (${response.status})`))
   }
 
   yield* parseSSEStream(response, (parsed: unknown) => {
@@ -241,4 +294,31 @@ async function* parseSSEStream<T>(
       }
     }
   }
+}
+
+async function parseErrorResponseText(response: Response, defaultPrefix: string): Promise<string> {
+  const text = await response.text().catch(() => '')
+  let errorMessage = ''
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed.message) {
+      errorMessage = parsed.message
+    } else if (parsed.error) {
+      if (typeof parsed.error === 'string') {
+        errorMessage = parsed.error
+      } else if (parsed.error.message) {
+        errorMessage = parsed.error.message
+      } else {
+        errorMessage = JSON.stringify(parsed.error)
+      }
+    }
+  } catch {
+    // Keep raw text if not JSON
+  }
+
+  if (!errorMessage) {
+    errorMessage = text.slice(0, 300) || `HTTP error ${response.status}`
+  }
+
+  return `${defaultPrefix}: ${errorMessage}`
 }
