@@ -1,5 +1,9 @@
 import handler, { createServerEntry } from '@tanstack/react-start/server-entry'
 import {
+  handleChatProxyRequest,
+  isChatProxyRequest,
+} from './src/lib/chat-proxy'
+import {
   handleClaudeSnapshotProxyRequest,
   isClaudeSnapshotProxyRequest,
 } from './src/lib/claude-proxy'
@@ -10,6 +14,10 @@ import {
 
 export default createServerEntry({
   fetch(request) {
+    if (isChatProxyRequest(request)) {
+      return handleChatProxyRequest(request)
+    }
+
     if (isClaudeSnapshotProxyRequest(request)) {
       return handleClaudeSnapshotProxyRequest(request)
     }
