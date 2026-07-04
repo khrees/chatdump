@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans:
@@ -35,6 +39,84 @@
   --color-warning-ink: var(--warning-ink);
   --shadow-panel: var(--shadow);
   --shadow-soft: var(--shadow-soft);
+  --font-heading:
+    var(--font-sans);
+  --color-sidebar-ring:
+    var(--sidebar-ring);
+  --color-sidebar-border:
+    var(--sidebar-border);
+  --color-sidebar-accent-foreground:
+    var(--sidebar-accent-foreground);
+  --color-sidebar-accent:
+    var(--sidebar-accent);
+  --color-sidebar-primary-foreground:
+    var(--sidebar-primary-foreground);
+  --color-sidebar-primary:
+    var(--sidebar-primary);
+  --color-sidebar-foreground:
+    var(--sidebar-foreground);
+  --color-sidebar:
+    var(--sidebar);
+  --color-chart-5:
+    var(--chart-5);
+  --color-chart-4:
+    var(--chart-4);
+  --color-chart-3:
+    var(--chart-3);
+  --color-chart-2:
+    var(--chart-2);
+  --color-chart-1:
+    var(--chart-1);
+  --color-ring:
+    var(--ring);
+  --color-input:
+    var(--input);
+  --color-border:
+    var(--border);
+  --color-destructive:
+    var(--destructive);
+  --color-accent-foreground:
+    var(--accent-foreground);
+  --color-accent:
+    var(--accent);
+  --color-muted-foreground:
+    var(--muted-foreground);
+  --color-muted:
+    var(--muted);
+  --color-secondary-foreground:
+    var(--secondary-foreground);
+  --color-secondary:
+    var(--secondary);
+  --color-primary-foreground:
+    var(--primary-foreground);
+  --color-primary:
+    var(--primary);
+  --color-popover-foreground:
+    var(--popover-foreground);
+  --color-popover:
+    var(--popover);
+  --color-card-foreground:
+    var(--card-foreground);
+  --color-card:
+    var(--card);
+  --color-foreground:
+    var(--foreground);
+  --color-background:
+    var(--background);
+  --radius-sm:
+    calc(var(--radius) * 0.6);
+  --radius-md:
+    calc(var(--radius) * 0.8);
+  --radius-lg:
+    var(--radius);
+  --radius-xl:
+    calc(var(--radius) * 1.4);
+  --radius-2xl:
+    calc(var(--radius) * 1.8);
+  --radius-3xl:
+    calc(var(--radius) * 2.2);
+  --radius-4xl:
+    calc(var(--radius) * 2.6);
 }
 
 :root {
@@ -62,6 +144,33 @@
   --danger-ink: #b91c1c;
   --warning-bg: rgba(245, 158, 11, 0.1);
   --warning-ink: #b45309;
+  --background: var(--paper-solid);
+  --foreground: var(--ink);
+  --card: var(--paper-solid-elevated);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-solid);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent-teal);
+  --primary-foreground: #ffffff;
+  --secondary: var(--paper-solid-elevated);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-solid-elevated);
+  --muted-foreground: var(--ink-soft);
+  --accent: var(--paper-solid-inset);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger-ink);
+  --border: var(--border-contrast);
+  --input: var(--border-contrast);
+  --ring: var(--accent-teal);
+  --radius: 0.625rem;
+  --sidebar: var(--paper-solid-elevated);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--accent-teal);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--paper-solid-inset);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--border-contrast);
+  --sidebar-ring: var(--accent-teal);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -690,4 +799,125 @@ body {
 }
 .animate-bounce {
   animation: bounce 1s infinite;
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+/* ── Chat message cards ───────────────────────────────────────────────────── */
+
+.chat-message {
+  border-radius: 0.625rem;
+  border: 1px solid var(--line);
+  background: var(--paper-elevated);
+  overflow: hidden;
+  margin-bottom: 0;
+  position: relative;
+}
+
+/* Left accent border via box-shadow so it doesn't affect layout */
+.chat-message[data-role="user"] {
+  border-left: 3px solid hsl(38 95% 62% / 0.7);
+  background: hsl(38 95% 62% / 0.03);
+}
+
+.chat-message[data-role="assistant"] {
+  border-left: 3px solid hsl(174 60% 42% / 0.7);
+  background: hsl(174 60% 42% / 0.03);
+}
+
+.chat-message[data-role="system"] {
+  border-left: 3px solid hsl(260 40% 65% / 0.6);
+  background: hsl(260 40% 65% / 0.03);
+}
+
+.chat-message-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-message[data-role="user"] .chat-message-header {
+  color: hsl(38 95% 50%);
+}
+
+.chat-message[data-role="assistant"] .chat-message-header {
+  color: hsl(174 60% 42%);
+}
+
+.chat-message[data-role="system"] .chat-message-header {
+  color: hsl(260 40% 58%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .chat-message[data-role="user"] .chat-message-header {
+    color: hsl(38 95% 62%);
+  }
+  .chat-message[data-role="assistant"] .chat-message-header {
+    color: hsl(174 60% 52%);
+  }
+  .chat-message[data-role="system"] .chat-message-header {
+    color: hsl(260 40% 70%);
+  }
+}
+
+.chat-message-body {
+  padding: 1rem 1rem 1.1rem;
+}
+
+/* Tighten vertical rhythm inside message bodies */
+.chat-message-body .markdown-preview > * + * {
+  margin-top: 0.9rem;
+}
+
+/* Model name badge inside assistant header */
+.chat-message-model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  background: hsl(174 60% 42% / 0.12);
+  border: 1px solid hsl(174 60% 42% / 0.25);
+  font-size: 0.65rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(174 60% 42%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .chat-message-model-badge {
+    background: hsl(174 60% 52% / 0.12);
+    border-color: hsl(174 60% 52% / 0.25);
+    color: hsl(174 60% 52%);
+  }
+}
+
+/* Spacing between consecutive chat cards */
+.chat-messages-list > * + * {
+  margin-top: 0.75rem;
+}
+
+/* Keep h2 headings inside message bodies from getting the role-heading treatment */
+.chat-message-body h2 {
+  border-top: none;
+  padding-top: 0;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  border-left: none;
+  padding-left: 0;
 }
