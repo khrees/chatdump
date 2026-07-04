@@ -1267,7 +1267,7 @@ function Home() {
                               ? "Preview"
                               : tabId === "markdown"
                                 ? "Markdown"
-                                : "Plain Text"}
+                                : "Plain"}
                           </button>
                         ),
                       )}

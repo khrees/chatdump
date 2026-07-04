@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -183,6 +183,50 @@ export function ChatContinuation({
   const [error, setError] = useState<string | null>(null);
   const [editableContext, setEditableContext] = useState("");
   const [contextEdited, setContextEdited] = useState(false);
+
+  // Compute a unique key for localStorage based on the base markdown's content
+  const storageKey = useMemo(() => {
+    if (!markdown) return null;
+    let hash = 0;
+    for (let i = 0; i < Math.min(markdown.length, 1000); i++) {
+      const char = markdown.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return `chatdump.continuation.${hash}`;
+  }, [markdown]);
+
+  // Load saved continuation messages when the base markdown changes
+  useEffect(() => {
+    if (!storageKey) {
+      setContinuationMessages([]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        setContinuationMessages(JSON.parse(saved));
+      } else {
+        setContinuationMessages([]);
+      }
+    } catch {
+      setContinuationMessages([]);
+    }
+  }, [storageKey]);
+
+  // Persist continuation messages to localStorage whenever they change
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      if (continuationMessages.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(continuationMessages));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    } catch {
+      // Ignore storage failures
+    }
+  }, [continuationMessages, storageKey]);
 
   // Auto-dismiss error toast after 7 seconds
   useEffect(() => {
@@ -828,6 +872,22 @@ export function ChatContinuation({
             >
               <Settings aria-hidden="true" className="h-4 w-4" />
             </button>
+
+            {/* Reset/Clear Continuation history button */}
+            {continuationMessages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Reset continuation chat history?")) {
+                    setContinuationMessages([]);
+                  }
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-contrast bg-paper-solid text-ink-soft hover:text-ink hover:bg-paper-solid-inset transition-colors"
+                title="Reset continuation history"
+              >
+                <RotateCcw aria-hidden="true" className="h-4 w-4" />
+              </button>
+            )}
 
             {/* Collapse button */}
             {!disableCollapse && (
