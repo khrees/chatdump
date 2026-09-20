@@ -282,7 +282,7 @@ export function ShareDropdown({
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
                   : copyStatus === 'error' && clickedProviderId === 'manual-copy'
                     ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
-                    : 'bg-teal text-white border-teal/10 hover:bg-teal-hover shadow-sm'
+                    : 'bg-accent text-white border-accent/10 hover:bg-accent-hover shadow-sm'
               )}
             >
               {copyStatus === 'success' && clickedProviderId === 'manual-copy'
@@ -301,8 +301,8 @@ export function ShareDropdown({
                 const isClicked = clickedProviderId === provider.id && copyStatus === 'success'
                 const isError = clickedProviderId === provider.id && copyStatus === 'error'
                 
-                let brandColorClass = 'hover:border-teal/50 border-border-contrast bg-paper-solid-elevated'
-                let brandBadge = 'bg-teal/10 text-teal border border-teal/20'
+                let brandColorClass = 'hover:border-accent/50 border-border-contrast bg-paper-solid-elevated'
+                let brandBadge = 'bg-accent/10 text-accent border border-accent/20'
                 if (provider.id === 'chatgpt') {
                   brandColorClass = 'hover:border-emerald-500/50 border-border-contrast bg-paper-solid-elevated'
                   brandBadge = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'

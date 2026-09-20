@@ -588,10 +588,10 @@ export function ChatContinuation({
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
-        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-teal hover:bg-paper-solid hover:shadow-soft text-left"
+        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-paper-solid hover:shadow-soft text-left"
       >
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.9rem] transition-colors group-hover:bg-teal/20">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent text-[0.9rem] transition-colors group-hover:bg-accent/20">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
           </span>
           <span className="text-[0.95rem] font-bold text-ink">
@@ -601,7 +601,7 @@ export function ChatContinuation({
         <span
           className={cn(
             monoCapsClass,
-            "text-[0.68rem] font-bold text-ink-soft group-hover:text-teal transition-colors",
+            "text-[0.68rem] font-bold text-ink-soft group-hover:text-accent transition-colors",
           )}
         >
           Pick any model
@@ -640,7 +640,7 @@ export function ChatContinuation({
                   <select
                     value={activeCloudEdit}
                     onChange={(e) => setActiveCloudEdit(e.target.value as any)}
-                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
+                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
                   >
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic</option>
@@ -672,7 +672,7 @@ export function ChatContinuation({
                         apiKey: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                   />
                   <button
                     type="button"
@@ -703,7 +703,7 @@ export function ChatContinuation({
                   <select
                     value={activeLocalEdit}
                     onChange={(e) => setActiveLocalEdit(e.target.value as any)}
-                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
+                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
                   >
                     <option value="ollama">Ollama</option>
                     <option value="lmstudio">LM Studio</option>
@@ -733,7 +733,7 @@ export function ChatContinuation({
                         baseUrl: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                   />
                   {activeLocalEdit === "custom" && (
                     <input
@@ -745,7 +745,7 @@ export function ChatContinuation({
                           apiKey: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 placeholder:text-ink-soft"
+                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                     />
                   )}
                   <div className="flex gap-2">
@@ -787,7 +787,7 @@ export function ChatContinuation({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border-contrast px-5 py-3.5 bg-paper-solid">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal text-[0.85rem]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent text-[0.85rem]">
               <MessageSquare className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
@@ -808,7 +808,7 @@ export function ChatContinuation({
                     selectedModel: model,
                   });
                 }}
-                className="h-8 appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-teal focus:ring-2 focus:ring-teal/20"
+                className="h-8 appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
               >
                 {CLOUD_MODELS.length > 0 && (
                   <optgroup label="Cloud API (Requires Key)">
@@ -905,9 +905,9 @@ export function ChatContinuation({
         {/* Dynamic Body content */}
         {settings.selectedProvider === "webapp" ? (
           <div className="bg-paper-solid p-6 border-b border-border-contrast flex flex-col items-center justify-center gap-4 text-center animate-fade-in">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10 text-teal text-[1.2rem] mb-1">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent text-[1.2rem] mb-1">
               <svg
-                className="h-5.5 w-5.5 text-teal"
+                className="h-5.5 w-5.5 text-accent"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -978,7 +978,7 @@ export function ChatContinuation({
                 }}
                 rows={8}
                 spellCheck={false}
-                className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-teal focus:ring-2 focus:ring-teal/20 min-h-[8rem] max-h-64"
+                className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 min-h-[8rem] max-h-64"
               />
             </div>
 
@@ -998,9 +998,9 @@ export function ChatContinuation({
             <div className="max-h-[30rem] min-h-[8rem] overflow-y-auto overscroll-contain px-5 py-5 border-b border-border-contrast bg-paper-solid flex flex-col gap-4">
               {continuationMessages.length === 0 && !isStreaming && (
                 <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-teal/10 text-teal text-[1.2rem] mb-2">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent text-[1.2rem] mb-2">
                     <svg
-                      className="h-6 w-6 text-teal"
+                      className="h-6 w-6 text-accent"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1015,7 +1015,7 @@ export function ChatContinuation({
                   </span>
                   <p className="text-[0.92rem] font-bold text-ink-muted">
                     Type a message to continue the conversation with{" "}
-                    <span className="text-teal font-extrabold">
+                    <span className="text-accent font-extrabold">
                       {selectedModelName}
                     </span>
                   </p>
@@ -1050,12 +1050,12 @@ export function ChatContinuation({
                       </div>
                     </div>
                   ) : (
-                    // Assistant: left-aligned teal-border card
+                    // Assistant: left-aligned accent-border card
                     <div className="flex flex-col items-start gap-1 max-w-[85%]">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <Bot aria-hidden="true" className="h-3 w-3 text-teal" />
+                        <Bot aria-hidden="true" className="h-3 w-3 text-accent" />
                       </div>
-                      <div className="rounded-xl rounded-tl-sm border-l-2 border-l-teal/50 border border-border-contrast bg-paper-solid-elevated px-4 py-3 text-[0.88rem] shadow-sm w-full">
+                      <div className="rounded-xl rounded-tl-sm border-l-2 border-l-accent/50 border border-border-contrast bg-paper-solid-elevated px-4 py-3 text-[0.88rem] shadow-sm w-full">
                         <div className="markdown-preview leading-[1.68]">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
@@ -1083,12 +1083,12 @@ export function ChatContinuation({
               {isStreaming && streamingContent && (
                 <div className="flex flex-col items-start w-full">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Bot aria-hidden="true" className="h-3 w-3 text-teal" />
-                    <span className="inline-flex items-center text-[0.6rem] font-mono font-bold uppercase text-teal animate-pulse">
+                    <Bot aria-hidden="true" className="h-3 w-3 text-accent" />
+                    <span className="inline-flex items-center text-[0.6rem] font-mono font-bold uppercase text-accent animate-pulse">
                       (STREAMING)
                     </span>
                   </div>
-                  <div className="rounded-xl rounded-tl-sm border-l-2 border-l-teal/50 border border-border-contrast bg-paper-solid-elevated p-4 text-[0.88rem] shadow-sm max-w-[85%] w-full">
+                  <div className="rounded-xl rounded-tl-sm border-l-2 border-l-accent/50 border border-border-contrast bg-paper-solid-elevated p-4 text-[0.88rem] shadow-sm max-w-[85%] w-full">
                     <div className="markdown-preview leading-[1.68]">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
@@ -1109,28 +1109,28 @@ export function ChatContinuation({
               {isStreaming && !streamingContent && (
                 <div className="flex flex-col items-start w-full">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Bot aria-hidden="true" className="h-3 w-3 text-teal" />
+                    <Bot aria-hidden="true" className="h-3 w-3 text-accent" />
                     <span
                       className={cn(
                         monoCapsClass,
-                        "font-mono text-[0.68rem] font-bold text-teal",
+                        "font-mono text-[0.68rem] font-bold text-accent",
                       )}
                     >
                       Thinking
                     </span>
                   </div>
-                  <div className="rounded-xl rounded-tl-sm border-l-2 border-l-teal/50 border border-border-contrast bg-paper-solid-elevated p-4 max-w-[85%]">
+                  <div className="rounded-xl rounded-tl-sm border-l-2 border-l-accent/50 border border-border-contrast bg-paper-solid-elevated p-4 max-w-[85%]">
                     <div className="flex gap-1.5">
                       <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-teal/60"
+                        className="h-2 w-2 animate-bounce rounded-full bg-accent/60"
                         style={{ animationDelay: "0ms" }}
                       />
                       <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-teal/60"
+                        className="h-2 w-2 animate-bounce rounded-full bg-accent/60"
                         style={{ animationDelay: "150ms" }}
                       />
                       <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-teal/60"
+                        className="h-2 w-2 animate-bounce rounded-full bg-accent/60"
                         style={{ animationDelay: "300ms" }}
                       />
                     </div>
@@ -1151,7 +1151,7 @@ export function ChatContinuation({
                   onKeyDown={handleKeyDown}
                   placeholder={`Ask ${selectedModelName || "the model"} a question...`}
                   rows={1}
-                  className="min-h-[2.8rem] max-h-32 flex-1 resize-none border-border-contrast bg-paper-solid-inset font-mono text-[0.82rem] text-ink focus-visible:border-teal focus-visible:ring-teal/20 placeholder:text-ink-soft"
+                  className="min-h-[2.8rem] max-h-32 flex-1 resize-none border-border-contrast bg-paper-solid-inset font-mono text-[0.82rem] text-ink focus-visible:border-accent focus-visible:ring-accent/20 placeholder:text-ink-soft"
                 />
 
                 {isStreaming ? (
@@ -1168,7 +1168,7 @@ export function ChatContinuation({
                     type="button"
                     onClick={handleSend}
                     disabled={!inputValue.trim()}
-                    className="flex h-[2.8rem] w-[2.8rem] shrink-0 items-center justify-center rounded-lg bg-teal text-white hover:bg-teal-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="flex h-[2.8rem] w-[2.8rem] shrink-0 items-center justify-center rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     title="Send message"
                   >
                     <Send className="h-4 w-4" aria-hidden="true" />

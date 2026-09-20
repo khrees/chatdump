@@ -117,7 +117,7 @@ function NotFoundComponent() {
       <section className="panel-shell grid w-full max-w-[42rem] gap-6 p-6 max-[720px]:gap-5 max-[720px]:rounded-[1.5rem] max-[720px]:p-4">
         <div className="grid gap-3">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(49,67,58,0.12)] bg-[rgba(255,255,255,0.54)] px-3 py-1.5 font-mono text-[0.72rem] uppercase tracking-[0.12em] text-ink-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brass" />
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-accent" />
             Route missing
           </div>
 

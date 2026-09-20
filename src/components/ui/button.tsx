@@ -19,12 +19,12 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
         // ── Design system variants ──────────────────────────────────────────
-        // Primary CTA: teal background, white text — the main action button
+        // Primary CTA: accent background, white text — the main action button
         primary:
-          "bg-teal text-white border-teal/20 hover:bg-teal-hover active:bg-teal-hover focus-visible:ring-teal/30 font-semibold shadow-sm",
+          "bg-accent text-white border-accent/20 hover:bg-accent-hover active:bg-accent-hover focus-visible:ring-accent/30 font-semibold shadow-sm",
         // Secondary: outlined paper surface — lower emphasis actions
         "secondary-outline":
-          "border-line bg-paper-elevated text-ink hover:bg-paper-raised hover:border-line-strong focus-visible:ring-teal/20",
+          "border-line bg-paper-elevated text-ink hover:bg-paper-raised hover:border-line-strong focus-visible:ring-accent/20",
       },
       size: {
         default:

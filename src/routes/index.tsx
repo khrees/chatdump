@@ -18,6 +18,7 @@ import {
   Check,
   Download,
   ChevronUp,
+  ClipboardList,
   User,
   Bot,
   Shield,
@@ -476,6 +477,15 @@ function detectPlatform(urlStr: string) {
           "border-slate-800/30 dark:border-slate-200/30 text-slate-800 dark:text-slate-200",
         logo: "Grok",
         bg: "bg-slate-500/10",
+      };
+    }
+    if (hostname.includes("meta.ai")) {
+      return {
+        id: "meta",
+        name: "Meta AI",
+        color: "border-blue-500/30 text-blue-600 dark:text-blue-400",
+        logo: "Meta",
+        bg: "bg-blue-500/10",
       };
     }
   } catch {
@@ -940,7 +950,7 @@ function Home() {
                   className="rounded-lg border border-line bg-paper-elevated p-4 shadow-sm"
                 >
                   <div className="mb-2 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded bg-teal/10 text-teal text-[0.8rem] font-bold">
+                    <span className="flex h-7 w-7 items-center justify-center rounded bg-accent/10 text-accent text-[0.8rem] font-bold">
                       {useCase.id}
                     </span>
                     <h3 className="font-bold text-ink">{useCase.title}</h3>
@@ -956,7 +966,7 @@ function Home() {
       )}
 
       <div className="mx-auto grid max-w-[1380px] gap-6">
-        <header className="flex items-center justify-between gap-4 px-1 pt-1">
+        <header className="sticky top-0 z-30 -mx-1 border-b border-line bg-paper/80 px-1 py-2 backdrop-blur-xl flex items-center justify-between gap-4">
           <button
             type="button"
             onClick={handleLogoClick}
@@ -996,13 +1006,13 @@ function Home() {
                   <div>
                     <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] font-extrabold leading-[1.05] tracking-tight mb-3">
                       Turn public share links into{" "}
-                      <span className="text-teal font-extrabold">Markdown</span>
+                      <span className="text-accent font-extrabold">Markdown</span>
                       .
                     </h1>
                     <p className="text-[0.95rem] leading-[1.6] text-ink-muted mb-6">
-                      Paste a supported ChatGPT, Claude, Copilot, Gemini, or
-                      Grok share URL to extract and export clean, structured
-                      Markdown.
+                      Paste a supported ChatGPT, Claude, Copilot, Gemini, Grok,
+                      or Meta AI share URL to extract and export clean,
+                      structured Markdown.
                     </p>
                   </div>
 
@@ -1029,7 +1039,7 @@ function Home() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 border border-line-strong focus-within:border-teal bg-paper-inset rounded-lg p-2.5 focus-within:ring-2 focus-within:ring-teal/20 transition-all">
+                    <div className="flex items-center gap-3 border border-line-strong focus-within:border-accent bg-paper-inset rounded-xl p-2.5 pl-4 shadow-sm transition-all focus-within:bg-paper-raised focus-within:ring-4 focus-within:ring-accent/15 focus-within:shadow-[0_16px_40px_-20px_rgba(79,70,229,0.45)]">
                       <svg
                         aria-hidden="true"
                         className="h-[1.1rem] w-[1.1rem] text-ink-soft"
@@ -1084,7 +1094,9 @@ function Home() {
 
                     {recentUrls.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-line rounded-lg">
-                        <span className="text-2xl mb-2">📋</span>
+                        <span className="mb-2 grid h-10 w-10 place-items-center rounded-full bg-paper-inset text-ink-soft">
+                          <ClipboardList aria-hidden="true" className="h-5 w-5" />
+                        </span>
                         <p className="text-xs text-ink-soft">
                           No conversions yet.
                         </p>
@@ -1105,7 +1117,7 @@ function Home() {
                             <div
                               key={recentUrl}
                               onClick={() => handleSelectRecentUrl(recentUrl)}
-                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-all hover:border-teal/30"
+                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-all hover:border-accent/30"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span
@@ -1147,8 +1159,8 @@ function Home() {
 
               {/* Three Bento Feature Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
                       className="h-5 w-5"
@@ -1169,8 +1181,8 @@ function Home() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
                       className="h-5 w-5"
@@ -1189,8 +1201,8 @@ function Home() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-teal/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-teal/10 text-teal">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
                       className="h-5 w-5"
@@ -1218,7 +1230,7 @@ function Home() {
                 Converting share link context...
               </span>
               <div className="relative w-64 h-2 bg-paper-inset border border-line rounded-full overflow-hidden">
-                <div className="absolute top-0 bottom-0 w-8 h-full bg-teal rounded-full animate-pipeline" />
+                <div className="absolute top-0 bottom-0 w-8 h-full bg-accent rounded-full animate-pipeline" />
               </div>
             </div>
           ) : null}
@@ -1243,7 +1255,7 @@ function Home() {
                         Back
                       </button>
 
-                      <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-teal/10 text-teal border border-teal/20">
+                      <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
                         {lineCount} L • {characterCount} C
                       </span>
                     </div>
@@ -1297,7 +1309,7 @@ function Home() {
                         {copyState === "copied" ? (
                           <Check
                             aria-hidden="true"
-                            className="h-[0.95rem] w-[0.95rem] text-teal"
+                            className="h-[0.95rem] w-[0.95rem] text-accent"
                           />
                         ) : (
                           <Copy
@@ -1592,8 +1604,8 @@ function Home() {
 
                     {/* Animated copy success celebration overlay */}
                     {copyState === "copied" && (
-                      <div className="absolute inset-0 bg-teal/5 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
-                        <div className="bg-paper border border-teal text-teal text-xs font-mono font-bold px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+                      <div className="absolute inset-0 bg-accent/5 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
+                        <div className="bg-paper border border-accent text-accent text-xs font-mono font-bold px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
                           <Check aria-hidden="true" className="h-4 w-4" />
                           SUCCESSFULLY COPIED TO CLIPBOARD! 🎉
                         </div>
@@ -1629,7 +1641,7 @@ function Home() {
             {/* Header */}
             <div className="flex items-center justify-between gap-3 border-b border-border-contrast px-6 py-4 bg-paper-solid">
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal/10 text-teal">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent">
                   <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
                 </span>
                 <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
@@ -1654,10 +1666,10 @@ function Home() {
                   id="opt-metadata"
                   checked={includeMetadata}
                   onChange={(e) => setIncludeMetadata(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
                     Include Metadata Header
                   </span>
                   <span className="text-[0.72rem] text-ink-soft leading-relaxed">
@@ -1673,10 +1685,10 @@ function Home() {
                   id="opt-system"
                   checked={includeSystemMessages}
                   onChange={(e) => setIncludeSystemMessages(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
                     Include System Prompts
                   </span>
                   <span className="text-[0.72rem] text-ink-soft leading-relaxed">
@@ -1692,10 +1704,10 @@ function Home() {
                   id="opt-emojis"
                   checked={removeEmojis}
                   onChange={(e) => setRemoveEmojis(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
                     Clean Emojis
                   </span>
                   <span className="text-[0.72rem] text-ink-soft leading-relaxed">
@@ -1711,10 +1723,10 @@ function Home() {
                   id="opt-html"
                   checked={cleanHtml}
                   onChange={(e) => setCleanHtml(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-teal focus:ring-teal/20 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-teal transition-colors">
+                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
                     Strip HTML Tags
                   </span>
                   <span className="text-[0.72rem] text-ink-soft leading-relaxed">
