@@ -28,6 +28,8 @@ function buildPromptUrl(providerId: string, prompt: string): string {
       return `https://gemini.google.com/?prompt=${encoded}`
     case 'grok':
       return `https://grok.com/?prompt=${encoded}`
+    case 'meta':
+      return `https://www.meta.ai/?prompt=${encoded}`
     default:
       return '#'
   }
@@ -45,6 +47,8 @@ function getBaseProviderUrl(providerId: string): string {
       return 'https://gemini.google.com/'
     case 'grok':
       return 'https://grok.com/'
+    case 'meta':
+      return 'https://www.meta.ai/'
     default:
       return '#'
   }
@@ -88,7 +92,7 @@ export function ShareDropdown({
 }: ShareDropdownProps) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
   const [clickedProviderId, setClickedProviderId] = useState<string | null>(null)
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -152,7 +156,7 @@ export function ShareDropdown({
   async function handleOpen(provider: ShareProvider) {
     if (!markdown) return
     setClickedProviderId(provider.id)
-    
+
     // Always copy prompt context to clipboard as it's the most reliable way
     const copied = await copyToClipboard(promptText)
     if (copied) {
@@ -187,7 +191,7 @@ export function ShareDropdown({
         ref={buttonRef}
         type="button"
         onClick={() => onOpenChange(!isOpen)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-white max-[500px]:min-h-[2.8rem] max-[500px]:px-[0.75rem] max-[500px]:pl-[0.7rem] max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
+        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-white/72 px-4 py-[0.35rem] pl-[0.9rem] text-ink shadow-soft transition-colors hover:bg-white max-[500px]:min-h-[2.8rem] max-[500px]:px-3 max-[500px]:pl-[0.7rem] max-[720px]:min-h-[3.15rem] max-[720px]:px-[0.95rem] max-[720px]:pl-[0.85rem]"
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
@@ -210,7 +214,7 @@ export function ShareDropdown({
         >
           <path
             d="M6 9l6 6 6-6"
-            className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
+            className="fill-none stroke-current stroke-2 stroke-linecap-round stroke-linejoin-round"
           />
         </svg>
       </button>
@@ -239,7 +243,7 @@ export function ShareDropdown({
               >
                 <path
                   d="M18 6L6 18M6 6l12 12"
-                  className="fill-none stroke-current stroke-[2] stroke-linecap-round"
+                  className="fill-none stroke-current stroke-2 stroke-linecap-round"
                 />
               </svg>
             </button>
@@ -332,7 +336,7 @@ export function ShareDropdown({
                         >
                           <path
                             d="M7 17L17 7M17 7H7M17 7v10"
-                            className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
+                            className="fill-none stroke-current stroke-2 stroke-linecap-round stroke-linejoin-round"
                           />
                         </svg>
                       )}

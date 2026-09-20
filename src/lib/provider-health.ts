@@ -10,6 +10,7 @@ const PROVIDERS: ShareProvider[] = [
   'copilot',
   'gemini',
   'grok',
+  'meta',
 ]
 
 export const PROVIDER_HEALTH_TOKEN_ENV_NAME = 'CHATDUMP_HEALTH_TOKEN'
@@ -20,6 +21,7 @@ export const PROVIDER_HEALTH_URL_ENV_NAMES: Record<ShareProvider, string> = {
   copilot: 'CHATDUMP_HEALTH_COPILOT_URL',
   gemini: 'CHATDUMP_HEALTH_GEMINI_URL',
   grok: 'CHATDUMP_HEALTH_GROK_URL',
+  meta: 'CHATDUMP_HEALTH_META_URL',
 }
 
 export interface ProviderHealthProbeResult {

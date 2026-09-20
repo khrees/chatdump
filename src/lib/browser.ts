@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { getClaudeProxyUrl } from './claude-proxy'
 import {
   extractClaudeConversationPayloads,
   isClaudeSnapshotResponseUrl,
@@ -19,7 +20,7 @@ import type { BrowserExtractResult } from './types'
 import { tryNormalizeShareUrl, type ShareProvider } from './url'
 
 const BROWSER_NAVIGATION_TIMEOUT_MS = 15_000
-const BROWSER_SIGNAL_TIMEOUT_MS = 5_000
+const BROWSER_SIGNAL_TIMEOUT_MS = 10_000
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36'
 const require = createRequire(import.meta.url)
@@ -46,8 +47,11 @@ type PlaywrightBrowser = {
 export async function extractConversationInBrowser(
   url: string,
 ): Promise<BrowserExtractResult | null> {
+  const provider = detectShareProvider(url)
+  const proxy = provider === 'claude' ? getClaudeBrowserProxyConfig() : null
+
   if (isVercelRuntime()) {
-    return extractConversationInServerlessBrowser(url)
+    return extractConversationInServerlessBrowser(url, proxy)
   }
 
   const resolvedPackagePath = resolveModulePath('playwright/package.json')
@@ -79,7 +83,10 @@ export async function extractConversationInBrowser(
   let browser: PlaywrightBrowser
 
   try {
-    browser = await playwright.chromium.launch({ headless: true })
+    browser = await playwright.chromium.launch({
+      headless: true,
+      ...(proxy ? { proxy } : {}),
+    })
   } catch (cause) {
     logWarn('Playwright browser launch failed; browser fallback unavailable', {
       error: getErrorMessage(cause),
@@ -100,6 +107,7 @@ export async function extractConversationInBrowser(
 
 async function extractConversationInServerlessBrowser(
   url: string,
+  proxy: BrowserProxyConfig | null,
 ): Promise<BrowserExtractResult | null> {
   const runtime = await loadServerlessBrowserRuntime()
 
@@ -124,6 +132,7 @@ async function extractConversationInServerlessBrowser(
     args: [...runtime.chromiumPackage.args, '--disable-blink-features=AutomationControlled'],
     executablePath,
     headless: true,
+    ...(proxy ? { proxy } : {}),
   })
 
   logInfo('Playwright browser launched', { url })
@@ -206,6 +215,39 @@ function detectShareProvider(url: string): ShareProvider {
   return tryNormalizeShareUrl(url)?.provider ?? 'chatgpt'
 }
 
+export interface BrowserProxyConfig {
+  password?: string
+  server: string
+  username?: string
+}
+
+/**
+ * Builds a Playwright `proxy` launch option from the Claude proxy URL.
+ * Returns `null` when no proxy is configured. Credentials never appear
+ * in logs — only the redacted server is logged by callers.
+ */
+export function getClaudeBrowserProxyConfig(
+  env: Record<string, string | undefined> = process.env,
+): BrowserProxyConfig | null {
+  const proxyUrl = getClaudeProxyUrl(env)
+
+  if (!proxyUrl) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(proxyUrl)
+
+    return {
+      ...(parsed.password ? { password: decodeURIComponent(parsed.password) } : {}),
+      server: `${parsed.protocol}//${parsed.host}`,
+      ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
 async function waitForProviderSignal(page: any, provider: ShareProvider) {
   const signal =
     provider === 'gemini'
@@ -220,17 +262,29 @@ async function waitForProviderSignal(page: any, provider: ShareProvider) {
               /Shared by/i.test(document.body.innerText) &&
                 /This is a copy of a chat/i.test(document.body.innerText),
             )
-      : () => {
-          const globalScope = window as unknown as Record<string, unknown>
+        : provider === 'meta'
+          ? () => {
+              const assistantMessages = document.querySelectorAll('[aria-label="Meta AI response"]');
+              for (const msg of assistantMessages) {
+                const content = msg.querySelector('.markdown-content');
+                const text = content instanceof HTMLElement ? content.innerText : content?.textContent ?? '';
+                if (text.trim().length > 0 && !/^(Show thinking)$/i.test(text.trim())) {
+                  return true;
+                }
+              }
+              return false;
+            }
+          : () => {
+              const globalScope = window as unknown as Record<string, unknown>
 
-          return Boolean(
-            globalScope.__NEXT_DATA__ ||
-              globalScope.__staticRouterHydrationData ||
-              (globalScope.__reactRouterDataRouter as { state?: unknown } | undefined)?.state ||
-              globalScope.__remixContext ||
-              document.querySelector('[data-message-author-role]'),
-          )
-        }
+              return Boolean(
+                globalScope.__NEXT_DATA__ ||
+                  globalScope.__staticRouterHydrationData ||
+                  (globalScope.__reactRouterDataRouter as { state?: unknown } | undefined)?.state ||
+                  globalScope.__remixContext ||
+                  document.querySelector('[data-message-author-role]'),
+              )
+            }
 
   await page
     .waitForFunction(signal, {

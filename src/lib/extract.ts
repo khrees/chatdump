@@ -15,6 +15,7 @@ import {
   createGrokShareConversationApiUrl,
   extractGrokConversationPayloads,
 } from './grok'
+import { extractMetaConversationPayloads, normalizeMetaConversation } from './meta'
 import { renderConversationToMarkdown } from './render'
 import type {
   BrowserExtractor,
@@ -192,6 +193,14 @@ async function loadShareConversation(
     return loadCopilotShareConversation(url, options.fetchImpl)
   }
 
+  if (options.provider === 'meta') {
+    return loadMetaShareConversation(url, {
+      browserExtractor: options.browserExtractor,
+      enableBrowserFallback: options.enableBrowserFallback,
+      fetchImpl: options.fetchImpl,
+    })
+  }
+
   try {
     const { finalUrl, html } = await fetchSharePage(url, options.fetchImpl)
 
@@ -214,6 +223,43 @@ async function loadShareConversation(
       browserUrl: url.toString(),
       error: cause.message,
     })
+
+    return resolveBrowserFallback(url.toString(), options.browserExtractor, cause)
+  }
+}
+
+async function loadMetaShareConversation(
+  url: URL,
+  options: {
+    browserExtractor?: BrowserExtractor
+    enableBrowserFallback?: boolean
+    fetchImpl: FetchImpl
+  },
+): Promise<{ conversation: NormalizedConversation; warnings: string[] }> {
+  try {
+    const { finalUrl, html } = await fetchSharePage(url, options.fetchImpl)
+
+    const payloads = extractMetaConversationPayloads(html)
+    const conversation = normalizeMetaConversation(payloads, finalUrl, extractPageTitle(load(html), finalUrl))
+
+    if (conversation) {
+      return { conversation, warnings: [] }
+    }
+
+    return await extractConversation(html, {
+      browserExtractor: options.browserExtractor,
+      browserUrl: url.toString(),
+      enableBrowserFallback: options.enableBrowserFallback,
+      sourceUrl: finalUrl,
+    })
+  } catch (cause) {
+    if (
+      !(cause instanceof ChatdumpError) ||
+      cause.code !== 'FETCH_FAILED' ||
+      options.enableBrowserFallback === false
+    ) {
+      throw cause
+    }
 
     return resolveBrowserFallback(url.toString(), options.browserExtractor, cause)
   }
@@ -1846,6 +1892,12 @@ function extractDomConversation(
     return claudeDomConversation
   }
 
+  const metaDomConversation = extractMetaDomConversation($, sourceUrl)
+
+  if (metaDomConversation) {
+    return metaDomConversation
+  }
+
   const elements = $('[data-message-author-role]').toArray()
 
   if (elements.length === 0) {
@@ -1919,6 +1971,71 @@ function extractClaudeDomConversation(
     messages.push({
       blocks,
       id: `claude-dom-${index + 1}`,
+      role,
+    })
+  })
+
+  if (messages.length === 0) {
+    return null
+  }
+
+  return {
+    messages,
+    sourceUrl,
+    title: extractPageTitle($, sourceUrl),
+  }
+}
+
+function extractMetaDomConversation(
+  $: CheerioAPI,
+  sourceUrl: string,
+): NormalizedConversation | null {
+  if (tryNormalizeShareUrl(sourceUrl)?.provider !== 'meta') {
+    return null
+  }
+
+  const elements = $('.group\\/message-row').toArray()
+
+  if (elements.length === 0) {
+    return null
+  }
+
+  const messages: NormalizedMessage[] = []
+
+  elements.forEach((element, index) => {
+    const el = $(element)
+    const isUser = el.find('.group\\/user-message').length > 0
+    const role: MessageRole = isUser ? 'user' : 'assistant'
+
+    let blocks: ContentBlock[] = []
+    if (isUser) {
+      const contentElement = el.find('.bg-accent-surface')
+      blocks = compactBlocks(extractBlocksFromNodes(contentElement.contents().toArray(), $))
+    } else {
+      // Meta AI assistant messages can have multiple .markdown-content blocks
+      // (e.g. one for thinking, one for the actual response).
+      const markdownBlocks = el.find('.markdown-content').toArray()
+      for (const mb of markdownBlocks) {
+        const mbBlocks = extractBlocksFromNodes($(mb).contents().toArray(), $)
+        // Filter out the "Show thinking" trigger block
+        const filteredBlocks = mbBlocks.filter(block => {
+          if (block.kind === 'text' && block.text.includes('Show thinking')) {
+            return block.text.trim() !== 'Show thinking'
+          }
+          return true
+        })
+        blocks.push(...filteredBlocks)
+      }
+      blocks = compactBlocks(blocks)
+    }
+
+    if (blocks.length === 0) {
+      return
+    }
+
+    messages.push({
+      blocks,
+      id: `meta-dom-${index + 1}`,
       role,
     })
   })

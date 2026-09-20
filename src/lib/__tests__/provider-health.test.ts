@@ -62,7 +62,8 @@ describe('handlePrivateProviderHealthRequest', () => {
         | 'claude'
         | 'copilot'
         | 'gemini'
-        | 'grok',
+        | 'grok'
+        | 'meta',
     ) => {
       probeCalls += 1
 
@@ -94,6 +95,7 @@ describe('handlePrivateProviderHealthRequest', () => {
       'copilot',
       'gemini',
       'grok',
+      'meta',
     ])
     expect(firstBody.providers.chatgpt.status).toBe('passing')
     expect(firstBody.providers.chatgpt.warningCount).toBe(1)
@@ -102,6 +104,7 @@ describe('handlePrivateProviderHealthRequest', () => {
     expect(firstBody.providers.copilot.status).toBe('passing')
     expect(firstBody.providers.gemini.status).toBe('unconfigured')
     expect(firstBody.providers.grok.status).toBe('unconfigured')
+    expect(firstBody.providers.meta.status).toBe('unconfigured')
     expect(probeCalls).toBe(3)
 
     now += 10

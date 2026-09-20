@@ -6,6 +6,7 @@ export type ShareProvider =
   | 'copilot'
   | 'gemini'
   | 'grok'
+  | 'meta'
 
 export interface ParsedShareUrl {
   provider: ShareProvider
@@ -41,6 +42,10 @@ const PROVIDER_DETAILS: Record<
   grok: {
     canonicalHost: 'grok.com',
     pathPrefix: 'share',
+  },
+  meta: {
+    canonicalHost: 'meta.ai',
+    pathPrefix: 'share/c',
   },
 }
 
@@ -117,6 +122,9 @@ function getProviderForHost(hostname: string): ShareProvider {
       return 'gemini'
     case 'grok.com':
       return 'grok'
+    case 'www.meta.ai':
+    case 'meta.ai':
+      return 'meta'
     default:
       throw new ChatdumpError(
         'UNSUPPORTED_URL',
@@ -190,6 +198,16 @@ function readShareId(
     pathParts[1]
   ) {
     return pathParts[1]
+  }
+
+  if (
+    (hostname === 'meta.ai' || hostname === 'www.meta.ai') &&
+    pathParts.length === 3 &&
+    pathParts[0] === 'share' &&
+    pathParts[1] === 'c' &&
+    pathParts[2]
+  ) {
+    return pathParts[2]
   }
 
   return null

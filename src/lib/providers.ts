@@ -44,4 +44,11 @@ export const shareProviders: ShareProvider[] = [
     faviconUrl: 'https://www.google.com/s2/favicons?domain=grok.com',
     description: 'Continue conversation',
   },
+  {
+    id: 'meta',
+    name: 'Meta AI',
+    url: 'https://www.meta.ai',
+    faviconUrl: 'https://www.google.com/s2/favicons?domain=meta.ai',
+    description: 'Continue conversation',
+  },
 ]

@@ -99,9 +99,6 @@ function renderHeading(message: NormalizedMessage): string {
 function renderBlock(block: ContentBlock, sourceUrl: string): string {
   switch (block.kind) {
     case 'text':
-      if (block.text.includes('|')) {
-        console.log('[chatdump:debug] Text block with | :', block.text.slice(0, 100) + '...')
-      }
       return block.text.trim()
     case 'code':
       return renderCodeBlock(block.language, block.code)
