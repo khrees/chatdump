@@ -12,7 +12,7 @@ import '../styles.css'
 const SITE_TITLE = 'chatdump | Public Share Link to Markdown'
 const SITE_DESCRIPTION =
   'Convert ChatGPT, Claude, Copilot, Gemini, and Grok share links into clean, deterministic Markdown.'
-const SITE_URL = 'https://chatdump.vercel.app'
+const SITE_URL = 'https://chatdump.khrees.com'
 const SOCIAL_IMAGE = `${SITE_URL}/social-card.svg`
 
 export const Route = createRootRoute({
@@ -92,6 +92,19 @@ export const Route = createRootRoute({
       {
         rel: 'apple-touch-icon',
         href: '/logo-mark.svg',
+      },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.googleapis.com',
+      },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossOrigin: 'anonymous',
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&display=swap',
       },
     ],
   }),

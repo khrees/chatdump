@@ -1,1 +1,0 @@
-export { convertShareUrlToMarkdown } from './extract'

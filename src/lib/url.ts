@@ -102,8 +102,7 @@ export function tryNormalizeShareUrl(rawUrl: string): ParsedShareUrl | null {
   }
 }
 
-export function getDefaultConversationTitle(rawUrl?: string | null): string {
-  void rawUrl
+export function getDefaultConversationTitle(_rawUrl?: string | null): string {
   return DEFAULT_CONVERSATION_TITLE
 }
 

@@ -13,7 +13,10 @@
       "node",
       "bun-types"
     ],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "server.ts",
