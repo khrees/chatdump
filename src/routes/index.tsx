@@ -878,7 +878,7 @@ function Home() {
           {toasts.map((toast) => (
             <div
               className={cn(
-                "pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3.5 pr-3 pl-4 shadow-lg backdrop-blur-md transition-all duration-300 animate-slide-up",
+                "pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3.5 pr-3 pl-4 shadow-lg backdrop-blur-md transition-[transform,opacity] duration-200 ease-snappy animate-slide-up",
                 toast.kind === "error"
                   ? "border-rose-200 bg-rose-50/95 dark:bg-rose-950/90 dark:border-rose-900/50 text-rose-800 dark:text-rose-200"
                   : "border-amber-200 bg-amber-50/95 dark:bg-amber-950/90 dark:border-amber-900/50 text-amber-800 dark:text-amber-200",
@@ -1002,7 +1002,7 @@ function Home() {
               {/* Bento Grid layout */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Large URL Input Bento Item */}
-                <section className="lg:col-span-2 panel-shell flex flex-col justify-start gap-2 p-6 md:p-8 hover:-translate-y-0.5 hover:shadow-md transition-all">
+                <section className="lg:col-span-2 panel-shell flex flex-col justify-start gap-2 p-6 md:p-8 hover:-translate-y-0.5 hover:shadow-md transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
                   <div>
                     <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] font-extrabold leading-[1.05] tracking-tight mb-3">
                       Turn public share links into{" "}
@@ -1039,7 +1039,7 @@ function Home() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 border border-line-strong focus-within:border-accent bg-paper-inset rounded-xl p-2.5 pl-4 shadow-sm transition-all focus-within:bg-paper-raised focus-within:ring-4 focus-within:ring-accent/15 focus-within:shadow-[0_16px_40px_-20px_rgba(79,70,229,0.45)]">
+                    <div className="flex items-center gap-3 border border-line-strong focus-within:border-accent bg-paper-inset rounded-xl p-2.5 pl-4 shadow-sm transition-[border-color,box-shadow,background-color] ease-snappy focus-within:bg-paper-raised focus-within:ring-4 focus-within:ring-accent/15 focus-within:shadow-[0_16px_40px_-20px_rgba(79,70,229,0.45)]">
                       <svg
                         aria-hidden="true"
                         className="h-[1.1rem] w-[1.1rem] text-ink-soft"
@@ -1075,7 +1075,7 @@ function Home() {
                 </section>
 
                 {/* History Bento Item */}
-                <section className="panel-shell p-6 flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all">
+                <section className="panel-shell p-6 flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
                   <div>
                     <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
                       <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-ink">
@@ -1117,7 +1117,7 @@ function Home() {
                             <div
                               key={recentUrl}
                               onClick={() => handleSelectRecentUrl(recentUrl)}
-                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-all hover:border-accent/30"
+                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-[background-color,border-color] hover:border-accent/30"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span
@@ -1159,7 +1159,7 @@ function Home() {
 
               {/* Three Bento Feature Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
@@ -1181,7 +1181,7 @@ function Home() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
@@ -1202,7 +1202,7 @@ function Home() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-all hover:border-accent/20">
+                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
@@ -1270,7 +1270,7 @@ function Home() {
                             type="button"
                             onClick={() => setOutputMode(tabId)}
                             className={cn(
-                              "px-2.5 py-1 text-[0.68rem] font-mono font-semibold uppercase tracking-wider rounded-md transition-all",
+                              "px-2.5 py-1 text-[0.68rem] font-mono font-semibold uppercase tracking-wider rounded-md transition-colors",
                               outputMode === tabId
                                 ? "bg-paper-elevated text-ink shadow-sm border border-line-strong"
                                 : "text-ink-soft hover:text-ink",

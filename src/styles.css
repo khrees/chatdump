@@ -116,6 +116,10 @@
     calc(var(--radius) * 2.2);
   --radius-4xl:
     calc(var(--radius) * 2.6);
+  --ease-snappy:
+    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring-soft:
+    cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root {
@@ -770,7 +774,7 @@ body {
 }
 .animate-pipeline {
   position: absolute;
-  animation: pipeline 1.8s ease-in-out infinite;
+  animation: pipeline 1.8s linear infinite;
 }
 
 @keyframes fadeIn {
@@ -778,7 +782,7 @@ body {
   to { opacity: 1; }
 }
 .animate-fade-in {
-  animation: fadeIn 0.35s ease-out forwards;
+  animation: fadeIn 0.25s var(--ease-snappy) forwards;
 }
 
 @keyframes slideUp {
@@ -795,6 +799,17 @@ body {
 }
 .animate-bounce {
   animation: bounce 1s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 

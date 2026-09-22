@@ -658,7 +658,7 @@ export function ChatContinuation({
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
-        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:bg-paper-solid hover:shadow-soft text-left"
+        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-snappy hover:-translate-y-0.5 hover:border-accent hover:bg-paper-solid hover:shadow-soft text-left"
       >
         <div className="flex items-center gap-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent text-[0.9rem] transition-colors group-hover:bg-accent/20">
@@ -719,7 +719,7 @@ export function ChatContinuation({
                       onClick={() => setActiveCloudEdit(p)}
                       aria-pressed={active}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-all",
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-colors",
                         active
                           ? "border-line-strong bg-paper-solid text-ink shadow-sm"
                           : "border-line bg-paper text-ink-soft hover:text-ink hover:border-line-strong",
@@ -755,7 +755,7 @@ export function ChatContinuation({
                         apiKey: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow,background-color] ease-snappy focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                   />
                   <button
                     type="button"
@@ -792,7 +792,7 @@ export function ChatContinuation({
                       onClick={() => setActiveLocalEdit(p)}
                       aria-pressed={active}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-all",
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-colors",
                         active
                           ? "border-line-strong bg-paper-solid text-ink shadow-sm"
                           : "border-line bg-paper text-ink-soft hover:text-ink hover:border-line-strong",
@@ -821,7 +821,7 @@ export function ChatContinuation({
                         baseUrl: e.target.value,
                       })
                     }
-                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow,background-color] ease-snappy focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                   />
                   {activeLocalEdit === "custom" && (
                     <input
@@ -833,7 +833,7 @@ export function ChatContinuation({
                           apiKey: e.target.value,
                         })
                       }
-                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
+                      className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 font-mono text-[0.82rem] text-ink outline-none transition-[border-color,box-shadow,background-color] ease-snappy focus:border-accent focus:ring-2 focus:ring-accent/20 placeholder:text-ink-soft"
                     />
                   )}
                   <div className="flex gap-2">
@@ -963,7 +963,7 @@ export function ChatContinuation({
                   onClick={() => switchMode(mode)}
                   aria-pressed={active}
                   className={cn(
-                    "rounded-md px-2.5 py-1 font-mono text-[0.68rem] font-bold uppercase tracking-wider transition-all",
+                    "rounded-md px-2.5 py-1 font-mono text-[0.68rem] font-bold uppercase tracking-wider transition-colors",
                     active
                       ? "bg-paper-elevated text-ink shadow-sm ring-1 ring-line-strong"
                       : "text-ink-soft hover:text-ink",
@@ -980,7 +980,7 @@ export function ChatContinuation({
               aria-label={isWebappMode ? "Web app target" : "Model"}
               value={`${settings.selectedProvider}:${settings.selectedModel}`}
               onChange={(e) => handleRouteSelect(e.target.value)}
-              className="h-8 w-full appearance-none truncate rounded-lg border border-line bg-paper px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
+              className="h-8 w-full appearance-none truncate rounded-lg border border-line bg-paper px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-[border-color,box-shadow,background-color] ease-snappy hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
             >
               {!isWebappMode && (
                 <optgroup label="Cloud API (Requires Key)">
@@ -1118,7 +1118,7 @@ export function ChatContinuation({
                     }}
                     rows={8}
                     spellCheck={false}
-                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 min-h-[8rem] max-h-64"
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-[border-color,box-shadow,background-color] ease-snappy focus:border-accent focus:ring-2 focus:ring-accent/20 min-h-[8rem] max-h-64"
                   />
                 </div>
               )}

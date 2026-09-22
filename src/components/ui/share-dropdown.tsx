@@ -324,7 +324,7 @@ export function ShareDropdown({
                   <div
                     key={provider.id}
                     className={cn(
-                      "group relative flex flex-col justify-between p-3.5 rounded-lg border transition-all hover:bg-paper-solid hover:shadow-sm",
+                      "group relative flex flex-col justify-between p-3.5 rounded-lg border transition-[background-color,box-shadow,border-color] duration-200 ease-snappy hover:bg-paper-solid hover:shadow-sm",
                       brandColorClass
                     )}
                   >
