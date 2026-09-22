@@ -1002,7 +1002,7 @@ function Home() {
               {/* Bento Grid layout */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Large URL Input Bento Item */}
-                <section className="lg:col-span-2 panel-shell flex flex-col justify-between p-6 md:p-8 hover:-translate-y-0.5 hover:shadow-md transition-all">
+                <section className="lg:col-span-2 panel-shell flex flex-col justify-start gap-2 p-6 md:p-8 hover:-translate-y-0.5 hover:shadow-md transition-all">
                   <div>
                     <h1 className="text-[clamp(2.2rem,5vw,3.6rem)] font-extrabold leading-[1.05] tracking-tight mb-3">
                       Turn public share links into{" "}
@@ -1197,7 +1197,8 @@ function Home() {
                   <h3 className="font-bold text-ink mb-1">Continue Context</h3>
                   <p className="text-[0.82rem] leading-relaxed text-ink-muted">
                     Seamlessly transition to a different model (ChatGPT, Claude,
-                    Gemini, Copilot, Grok) with one-click share context.
+                    Gemini, Copilot, Grok, Meta AI) with one-click share
+                    context.
                   </p>
                 </div>
 
@@ -1240,7 +1241,7 @@ function Home() {
               <div className="grid grid-cols-1 gap-6 items-start">
                 {/* Left Column: Exported Chat Content (Occupies 8/12 or 9/12 cols) */}
                 <section
-                  className="panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4"
+                  className="panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4 scroll-mt-20"
                   ref={outputSectionRef}
                 >
                   {/* Sticky floating toolbar */}
@@ -1515,16 +1516,22 @@ function Home() {
                                     >
                                       <div className="chat-message-header">
                                         {msg.role === "user" && (
-                                          <User
-                                            aria-hidden="true"
-                                            className="h-3.5 w-3.5 shrink-0"
-                                          />
+                                          <>
+                                            <User
+                                              aria-hidden="true"
+                                              className="h-3.5 w-3.5 shrink-0"
+                                            />
+                                            <span>You</span>
+                                          </>
                                         )}
                                         {msg.role === "assistant" && (
-                                          <Bot
-                                            aria-hidden="true"
-                                            className="h-3.5 w-3.5 shrink-0"
-                                          />
+                                          <>
+                                            <Bot
+                                              aria-hidden="true"
+                                              className="h-3.5 w-3.5 shrink-0"
+                                            />
+                                            <span>{modelName ?? "Assistant"}</span>
+                                          </>
                                         )}
                                         {msg.role === "system" && (
                                           <>

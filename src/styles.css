@@ -154,7 +154,6 @@
   --secondary-foreground: var(--ink);
   --muted: var(--paper-solid-elevated);
   --muted-foreground: var(--ink-soft);
-  --accent: var(--paper-solid-inset);
   --accent-foreground: var(--ink);
   --destructive: var(--danger-ink);
   --border: var(--border-contrast);

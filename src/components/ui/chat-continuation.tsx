@@ -183,6 +183,13 @@ export function ChatContinuation({
   const [error, setError] = useState<string | null>(null);
   const [editableContext, setEditableContext] = useState("");
   const [contextEdited, setContextEdited] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  // Remember last route per mode so the API/Web-app toggle never loses it
+  const lastApiRoute = useRef<{
+    provider: ChatProvider;
+    model: string;
+  } | null>(null);
+  const lastWebappModel = useRef<string | null>(null);
 
   // Compute a unique key for localStorage based on the base markdown's content
   const storageKey = useMemo(() => {
@@ -491,6 +498,69 @@ export function ChatContinuation({
     abortControllerRef.current?.abort();
   }
 
+  // ── Routing: API chat vs web-app redirect ──────────────────────────────
+  const isWebappMode = settings.selectedProvider === "webapp";
+
+  function switchMode(mode: "api" | "webapp") {
+    if (mode === "webapp") {
+      if (settings.selectedProvider !== "webapp") {
+        lastApiRoute.current = {
+          provider: settings.selectedProvider,
+          model: settings.selectedModel,
+        };
+      }
+      updateSettings({
+        selectedProvider: "webapp",
+        selectedModel: lastWebappModel.current ?? "chatgpt-web",
+      });
+      return;
+    }
+    if (settings.selectedProvider === "webapp") {
+      lastWebappModel.current = settings.selectedModel;
+    }
+    const saved = lastApiRoute.current;
+    const fallbackModel =
+      CLOUD_MODELS.find((m) => m.provider === "openai") ?? CLOUD_MODELS[0];
+    updateSettings({
+      selectedProvider: saved?.provider ?? "openai",
+      selectedModel:
+        saved?.model ?? fallbackModel?.id ?? settings.selectedModel,
+    });
+  }
+
+  function handleRouteSelect(value: string) {
+    const [provider, ...modelParts] = value.split(":");
+    const model = modelParts.join(":");
+    updateSettings({
+      selectedProvider: provider as ChatProvider,
+      selectedModel: model,
+    });
+  }
+
+  // Readiness of the current route (surfaced in the header pill)
+  function routeStatus(): { dot: string; label: string } {
+    if (isWebappMode) {
+      return { dot: "bg-sky-500", label: "Free · no key" };
+    }
+    const provider = settings.selectedProvider;
+    if (
+      provider === "ollama" ||
+      provider === "lmstudio" ||
+      provider === "custom"
+    ) {
+      const tested = connectionStatus[provider];
+      if (tested === "ok") return { dot: "bg-emerald-500", label: "Connected" };
+      if (tested === "fail")
+        return { dot: "bg-rose-500", label: "Unreachable" };
+      return { dot: "bg-slate-400", label: "Local · untested" };
+    }
+    const hasKey = Boolean(settings[provider]?.apiKey?.trim());
+    if (hasKey) return { dot: "bg-emerald-500", label: "Key set" };
+    return { dot: "bg-amber-500", label: "Needs key" };
+  }
+
+  const status = routeStatus();
+
   // Generate packaged prompt context including imported history and continuation messages
   function getFullConversationMarkdown() {
     let fullMarkdown = markdown;
@@ -632,27 +702,40 @@ export function ChatContinuation({
               >
                 Cloud Providers
               </p>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[0.82rem] font-bold text-ink">
-                  Select Provider to Configure
-                </label>
-                <div className="relative">
-                  <select
-                    value={activeCloudEdit}
-                    onChange={(e) => setActiveCloudEdit(e.target.value as any)}
-                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
-                  >
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google AI</option>
-                    <option value="grok">Grok (xAI)</option>
-                    <option value="mistral">Mistral</option>
-                  </select>
-                  <ChevronUp
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 rotate-180 text-ink-soft"
-                  />
-                </div>
+              <div
+                role="group"
+                aria-label="Cloud provider to configure"
+                className="flex flex-wrap gap-1.5"
+              >
+                {(
+                  ["openai", "anthropic", "google", "grok", "mistral"] as const
+                ).map((p) => {
+                  const active = activeCloudEdit === p;
+                  const hasKey = Boolean(settings[p].apiKey?.trim());
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setActiveCloudEdit(p)}
+                      aria-pressed={active}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-all",
+                        active
+                          ? "border-line-strong bg-paper-solid text-ink shadow-sm"
+                          : "border-line bg-paper text-ink-soft hover:text-ink hover:border-line-strong",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          hasKey ? "bg-emerald-500" : "bg-slate-400",
+                        )}
+                      />
+                      {PROVIDER_LABELS[p]}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="rounded-lg border border-border-contrast bg-paper-solid-elevated p-4 shadow-sm mt-1">
@@ -695,25 +778,30 @@ export function ChatContinuation({
               >
                 Local Models
               </p>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[0.82rem] font-bold text-ink">
-                  Select Local Provider to Configure
-                </label>
-                <div className="relative">
-                  <select
-                    value={activeLocalEdit}
-                    onChange={(e) => setActiveLocalEdit(e.target.value as any)}
-                    className="w-full appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2 pr-8 font-mono text-[0.82rem] text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
-                  >
-                    <option value="ollama">Ollama</option>
-                    <option value="lmstudio">LM Studio</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  <ChevronUp
-                    aria-hidden="true"
-                    className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 rotate-180 text-ink-soft"
-                  />
-                </div>
+              <div
+                role="group"
+                aria-label="Local provider to configure"
+                className="flex flex-wrap gap-1.5"
+              >
+                {(["ollama", "lmstudio", "custom"] as const).map((p) => {
+                  const active = activeLocalEdit === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setActiveLocalEdit(p)}
+                      aria-pressed={active}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[0.72rem] font-bold uppercase tracking-wider transition-all",
+                        active
+                          ? "border-line-strong bg-paper-solid text-ink shadow-sm"
+                          : "border-line bg-paper text-ink-soft hover:text-ink hover:border-line-strong",
+                      )}
+                    >
+                      {PROVIDER_LABELS[p]}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="rounded-lg border border-border-contrast bg-paper-solid-elevated p-4 shadow-sm mt-1">
@@ -796,63 +884,19 @@ export function ChatContinuation({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Model selector */}
-            <div className="relative">
-              <select
-                value={`${settings.selectedProvider}:${settings.selectedModel}`}
-                onChange={(e) => {
-                  const [provider, ...modelParts] = e.target.value.split(":");
-                  const model = modelParts.join(":");
-                  updateSettings({
-                    selectedProvider: provider as ChatProvider,
-                    selectedModel: model,
-                  });
-                }}
-                className="h-8 appearance-none rounded-lg border border-border-contrast bg-paper-solid-inset px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:bg-paper-solid hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
-              >
-                {CLOUD_MODELS.length > 0 && (
-                  <optgroup label="Cloud API (Requires Key)">
-                    {CLOUD_MODELS.map((m) => (
-                      <option
-                        key={`${m.provider}:${m.id}`}
-                        value={`${m.provider}:${m.id}`}
-                      >
-                        {m.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                {localModels.length > 0 && (
-                  <optgroup label="Local API">
-                    {localModels.map((m) => (
-                      <option
-                        key={`${m.provider}:${m.id}`}
-                        value={`${m.provider}:${m.id}`}
-                      >
-                        {m.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                <optgroup label="Browser Web Apps (Free)">
-                  <option value="webapp:chatgpt-web">ChatGPT Web App</option>
-                  <option value="webapp:claude-web">Claude Web App</option>
-                  <option value="webapp:gemini-web">Gemini Web App</option>
-                  <option value="webapp:grok-web">Grok Web App</option>
-                  <option value="webapp:copilot-web">Copilot Web App</option>
-                </optgroup>
-              </select>
-              <svg
+            {/* Readiness pill — opens settings to fix it */}
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              title="Model settings"
+              className="inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-paper px-2.5 font-mono text-[0.7rem] font-bold uppercase tracking-wider text-ink-soft transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <span
                 aria-hidden="true"
-                className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M6 9l6 6 6-6"
-                  className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
-                />
-              </svg>
-            </div>
+                className={cn("h-1.5 w-1.5 rounded-full", status.dot)}
+              />
+              {status.label}
+            </button>
 
             {/* Settings button */}
             <button
@@ -902,6 +946,86 @@ export function ChatContinuation({
           </div>
         </div>
 
+        {/* Route bar: mode first, model second */}
+        <div className="flex items-center gap-2 border-b border-line bg-paper-solid px-5 py-2.5">
+          <div
+            role="group"
+            aria-label="Continuation mode"
+            className="flex shrink-0 rounded-lg border border-line bg-paper-inset p-0.5"
+          >
+            {(["api", "webapp"] as const).map((mode) => {
+              const active =
+                mode === "webapp" ? isWebappMode : !isWebappMode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => switchMode(mode)}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 font-mono text-[0.68rem] font-bold uppercase tracking-wider transition-all",
+                    active
+                      ? "bg-paper-elevated text-ink shadow-sm ring-1 ring-line-strong"
+                      : "text-ink-soft hover:text-ink",
+                  )}
+                >
+                  {mode === "api" ? "Chat here" : "Web app"}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative min-w-0 flex-1">
+            <select
+              aria-label={isWebappMode ? "Web app target" : "Model"}
+              value={`${settings.selectedProvider}:${settings.selectedModel}`}
+              onChange={(e) => handleRouteSelect(e.target.value)}
+              className="h-8 w-full appearance-none truncate rounded-lg border border-line bg-paper px-3 pr-7 font-mono text-[0.72rem] font-bold uppercase tracking-wider text-ink outline-none transition-all hover:border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20"
+            >
+              {!isWebappMode && (
+                <optgroup label="Cloud API (Requires Key)">
+                  {CLOUD_MODELS.map((m) => (
+                    <option
+                      key={`${m.provider}:${m.id}`}
+                      value={`${m.provider}:${m.id}`}
+                    >
+                      {m.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {!isWebappMode && localModels.length > 0 && (
+                <optgroup label="Local API">
+                  {localModels.map((m) => (
+                    <option
+                      key={`${m.provider}:${m.id}`}
+                      value={`${m.provider}:${m.id}`}
+                    >
+                      {m.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {isWebappMode &&
+                WEB_APPS.map((w) => (
+                  <option key={w.id} value={`webapp:${w.id}`}>
+                    {w.name}
+                  </option>
+                ))}
+            </select>
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M6 9l6 6 6-6"
+                className="fill-none stroke-current stroke-[2] stroke-linecap-round stroke-linejoin-round"
+              />
+            </svg>
+          </div>
+        </div>
+
         {/* Dynamic Body content */}
         {settings.selectedProvider === "webapp" ? (
           <div className="bg-paper-solid p-6 border-b border-border-contrast flex flex-col items-center justify-center gap-4 text-center animate-fade-in">
@@ -941,13 +1065,18 @@ export function ChatContinuation({
               </p>
             </div>
 
-            {/* Editable context prompt */}
+            {/* Editable context prompt (collapsed by default) */}
             <div className="w-full max-w-md text-left mt-2">
-              <div className="flex items-center justify-between mb-1">
+              <button
+                type="button"
+                onClick={() => setShowContext((v) => !v)}
+                aria-expanded={showContext}
+                className="flex w-full items-center justify-between rounded-lg border border-line bg-paper px-3 py-2 transition-colors hover:border-line-strong"
+              >
                 <span className="text-[0.68rem] font-mono font-bold uppercase tracking-wider text-ink-soft">
-                  Context Prompt
+                  Review context
                 </span>
-                <div className="flex items-center gap-2">
+                <span className="flex items-center gap-2">
                   {contextEdited && (
                     <span className="text-[0.6rem] font-mono text-amber-500 font-bold uppercase tracking-wide">
                       Edited
@@ -956,30 +1085,43 @@ export function ChatContinuation({
                   <span className="text-[0.6rem] font-mono bg-paper-solid border border-border-contrast rounded px-1.5 py-0.5 text-ink-soft">
                     {editableContext.length.toLocaleString()} chars
                   </span>
+                  <ChevronUp
+                    aria-hidden="true"
+                    className={cn(
+                      "h-3.5 w-3.5 text-ink-soft transition-transform",
+                      !showContext && "rotate-180",
+                    )}
+                  />
+                </span>
+              </button>
+              {showContext && (
+                <div className="mt-2 animate-fade-in">
                   {contextEdited && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditableContext(fullMarkdownContext);
-                        setContextEdited(false);
-                      }}
-                      className="text-[0.6rem] font-mono font-bold uppercase tracking-wide text-ink-soft hover:text-ink border border-border-contrast rounded px-1.5 py-0.5 bg-paper-solid hover:bg-paper-solid-inset transition-colors"
-                    >
-                      Reset
-                    </button>
+                    <div className="mb-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditableContext(fullMarkdownContext);
+                          setContextEdited(false);
+                        }}
+                        className="text-[0.6rem] font-mono font-bold uppercase tracking-wide text-ink-soft hover:text-ink border border-border-contrast rounded px-1.5 py-0.5 bg-paper-solid hover:bg-paper-solid-inset transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
                   )}
+                  <textarea
+                    value={editableContext}
+                    onChange={(e) => {
+                      setEditableContext(e.target.value);
+                      setContextEdited(true);
+                    }}
+                    rows={8}
+                    spellCheck={false}
+                    className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 min-h-[8rem] max-h-64"
+                  />
                 </div>
-              </div>
-              <textarea
-                value={editableContext}
-                onChange={(e) => {
-                  setEditableContext(e.target.value);
-                  setContextEdited(true);
-                }}
-                rows={8}
-                spellCheck={false}
-                className="w-full rounded-lg border border-border-contrast bg-paper-solid-inset px-3 py-2.5 font-mono text-[0.72rem] text-ink-muted whitespace-pre-wrap leading-normal resize-y outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 min-h-[8rem] max-h-64"
-              />
+              )}
             </div>
 
             <Button
