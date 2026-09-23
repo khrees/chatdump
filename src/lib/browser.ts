@@ -264,12 +264,20 @@ async function waitForProviderSignal(page: any, provider: ShareProvider) {
             )
         : provider === 'meta'
           ? () => {
+              // Real answer content only: thinking UI carries a localized
+              // label ("Show thinking", "عرض التفكير", …) so it is excluded
+              // structurally instead of by text.
               const assistantMessages = document.querySelectorAll('[aria-label="Meta AI response"]');
               for (const msg of assistantMessages) {
-                const content = msg.querySelector('.markdown-content');
-                const text = content instanceof HTMLElement ? content.innerText : content?.textContent ?? '';
-                if (text.trim().length > 0 && !/^(Show thinking)$/i.test(text.trim())) {
-                  return true;
+                const blocks = msg.querySelectorAll('.markdown-content');
+                for (const block of blocks) {
+                  if (block.querySelector('[data-testid="thinking-status"], [data-testid="subagent-cot-list"]')) {
+                    continue;
+                  }
+                  const content = block instanceof HTMLElement ? block.innerText : block.textContent ?? '';
+                  if (content.trim().length > 0) {
+                    return true;
+                  }
                 }
               }
               return false;

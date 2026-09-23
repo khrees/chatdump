@@ -164,15 +164,36 @@ interface ChatContinuationProps {
   markdown: string;
   disableCollapse?: boolean;
   className?: string;
+  /** Controlled expansion (pairs with onExpandedChange). */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
+  /** 'none' hides the collapsed trigger bar (parent renders its own). */
+  trigger?: "bar" | "none";
 }
 
 export function ChatContinuation({
   markdown,
   disableCollapse = false,
   className,
+  expanded: controlledExpanded,
+  onExpandedChange,
+  trigger = "bar",
 }: ChatContinuationProps) {
-  const [isExpanded, setIsExpanded] = useState(disableCollapse);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(disableCollapse);
+  // Controlled when parent passes `expanded`; otherwise self-managed.
+  const isExpanded = controlledExpanded ?? internalExpanded;
+  const setIsExpanded = useCallback(
+    (value: boolean | ((prev: boolean) => boolean)) => {
+      if (controlledExpanded !== undefined) {
+        onExpandedChange?.(
+          typeof value === "function" ? value(controlledExpanded) : value,
+        );
+      } else {
+        setInternalExpanded(value);
+      }
+    },
+    [controlledExpanded, onExpandedChange],
+  );  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<ChatSettings>(DEFAULT_SETTINGS);
   const [continuationMessages, setContinuationMessages] = useState<
     ContinuationMessage[]
@@ -190,6 +211,7 @@ export function ChatContinuation({
     model: string;
   } | null>(null);
   const lastWebappModel = useRef<string | null>(null);
+  const continuationPanelRef = useRef<HTMLDivElement | null>(null);
 
   // Compute a unique key for localStorage based on the base markdown's content
   const storageKey = useMemo(() => {
@@ -613,6 +635,10 @@ export function ChatContinuation({
       redirectUrl = isTooLong
         ? "https://copilot.microsoft.com/"
         : `https://copilot.microsoft.com/?prompt=${encodeURIComponent(editableContext)}`;
+    } else if (settings.selectedModel === "meta-web") {
+      redirectUrl = isTooLong
+        ? "https://www.meta.ai/"
+        : `https://www.meta.ai/?prompt=${encodeURIComponent(editableContext)}`;
     }
 
     if (copied) {
@@ -626,7 +652,9 @@ export function ChatContinuation({
                 ? "Gemini"
                 : settings.selectedModel === "grok-web"
                   ? "Grok"
-                  : "Copilot"
+                  : settings.selectedModel === "meta-web"
+                    ? "Meta AI"
+                    : "Copilot"
         }...`,
       );
     } else {
@@ -653,28 +681,38 @@ export function ChatContinuation({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isSettingsOpen]);
 
+  useEffect(() => {
+    if (isExpanded && !disableCollapse) {
+      continuationPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [isExpanded, disableCollapse]);
+
   if (!isExpanded && !disableCollapse) {
+    if (trigger === "none") return null;
     return (
       <button
         type="button"
         onClick={() => setIsExpanded(true)}
-        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-lg border border-border-contrast bg-paper-solid-elevated px-5 py-4 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-snappy hover:-translate-y-0.5 hover:border-accent hover:bg-paper-solid hover:shadow-soft text-left"
+        className="group mt-4 flex w-full items-center justify-between gap-3 rounded-xl border border-border-contrast bg-paper-solid-elevated px-5 py-3.5 transition-[transform,box-shadow,border-color,background-color] duration-200 ease-snappy hover:-translate-y-0.5 hover:border-accent/40 hover:bg-paper-solid hover:shadow-soft text-left active:scale-[0.99]"
       >
-        <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent text-[0.9rem] transition-colors group-hover:bg-accent/20">
+        <div className="flex items-center gap-3.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent transition-colors group-hover:bg-accent/20">
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
           </span>
-          <span className="text-[0.95rem] font-bold text-ink">
-            Continue this conversation
-          </span>
+          <div>
+            <span className="text-[0.92rem] font-bold text-ink block leading-tight">
+              Continue this conversation
+            </span>
+            <span className="text-[0.72rem] text-ink-muted leading-tight mt-0.5 block">
+              Bridge context to Claude, ChatGPT, Gemini, Grok, or local models
+            </span>
+          </div>
         </div>
-        <span
-          className={cn(
-            monoCapsClass,
-            "text-[0.68rem] font-bold text-ink-soft group-hover:text-accent transition-colors",
-          )}
-        >
-          Pick any model
+        <span className="inline-flex items-center gap-1 rounded-full border border-line bg-paper px-3 py-1 font-mono text-[0.68rem] font-semibold text-ink-soft group-hover:border-accent/40 group-hover:text-accent transition-colors">
+          Pick model →
         </span>
       </button>
     );
@@ -867,8 +905,9 @@ export function ChatContinuation({
 
       {/* Continuation Panel */}
       <div
+        ref={continuationPanelRef}
         className={cn(
-          "mt-4 rounded-xl border border-border-contrast bg-paper-solid-elevated shadow-lg animate-fade-in overflow-hidden",
+          "mt-4 rounded-xl border border-border-contrast bg-paper-solid-elevated shadow-lg animate-fade-in overflow-hidden scroll-mt-6",
           className,
         )}
       >
@@ -1055,7 +1094,9 @@ export function ChatContinuation({
                       ? "Gemini"
                       : settings.selectedModel === "grok-web"
                         ? "Grok"
-                        : "Copilot"}
+                        : settings.selectedModel === "meta-web"
+                          ? "Meta AI"
+                          : "Copilot"}
               </p>
               <p className="text-[0.78rem] text-ink-soft mt-1 leading-relaxed">
                 Browser web apps do not support API streaming. Instead, we'll

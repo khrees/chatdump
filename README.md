@@ -8,16 +8,16 @@ Paste a public share link, get back a readable Markdown transcript with syntax h
 
 ## Supported Platforms
 
-ChatGPT, Claude, Copilot, Gemini, and Grok.
+ChatGPT, Claude, Copilot, Gemini, Grok, and Meta AI.
 
 > **Note:** Claude share links may occasionally fail when the app is deployed on serverless infrastructure (Vercel, AWS Lambda). Claude's CDN applies bot-detection challenges to requests from datacenter IP ranges, which can block automated browser access. To route Claude snapshot API requests (and Claude browser fallback) through a paid/residential proxy, set `CHATDUMP_CLAUDE_PROXY_URL` to a full proxy URL (e.g. `http://username:password@p.webshare.io:80/`). Without a proxy, blocked conversions return an error.
 
 ## Features
 
-- **Multiple view modes** — View as raw Markdown, rendered preview with syntax highlighting, or plain text
+- **Two view modes** — Raw Markdown source or rendered preview with syntax highlighting, one-tap toggle
 - **Copy & Download** — Copy to clipboard or download as `.md` file
-- **Continue in chat** — Share dropdown lets you copy the conversation and open it in ChatGPT, Claude, Copilot, Gemini, or Grok
-- **Recent URLs** — Quick access to previously converted share links
+- **Continue in chat** — Share dropdown lets you copy the conversation and open it in ChatGPT, Claude, Copilot, Gemini, Grok, or Meta AI
+- **Recent URLs** — Quick access to previously converted share links, one-tap clear
 
 
 ## Quick Start
@@ -30,10 +30,7 @@ bun run dev
 ## Usage
 
 1. Paste a public share link into the input field
-2. Choose your preferred view mode:
-   - **Markdown** — Raw markdown text
-   - **Preview** — Rendered preview with syntax highlighting
-   - **Plain** — Stripped formatting for maximum readability
+2. Toggle between **Preview** (rendered) and **Source** (raw Markdown) with the eye button
 3. Click **Copy** to copy to clipboard, or **.md** to download
 4. Use **Share** to copy with a prompt for continuing the conversation elsewhere
 
@@ -47,6 +44,7 @@ https://gemini.google.com/share/<id>
 https://g.co/gemini/share/<id>
 https://claude.ai/share/<id>
 https://grok.com/share/<id>
+https://www.meta.ai/share/c/<id>
 ```
 
 Redirects between supported share domains are handled automatically.
@@ -55,7 +53,7 @@ Redirects between supported share domains are handled automatically.
 
 **Export any AI chat to readable Markdown** — No more copy-pasting messages manually. Copy, save, or continue anywhere.
 
-**Works with any AI platform** — One tool for ChatGPT, Claude, Copilot, Gemini, and Grok. No need to switch between different export methods.
+**Works with any AI platform** — One tool for ChatGPT, Claude, Copilot, Gemini, Grok, and Meta AI. No need to switch between different export methods.
 
 **Continue conversations elsewhere** — Use the Share dropdown to copy a conversation and continue it in ChatGPT, Claude, or any other AI chat. Get a different perspective on the same context.
 

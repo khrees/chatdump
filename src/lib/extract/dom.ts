@@ -135,18 +135,20 @@ export function extractMetaDomConversation(
       blocks = compactBlocks(extractBlocksFromNodes(contentElement.contents().toArray(), $))
     } else {
       // Meta AI assistant messages can have multiple .markdown-content blocks
-      // (e.g. one for thinking, one for the actual response).
+      // (e.g. one for thinking, one for the actual response). Thinking UI is
+      // skipped structurally via its test ids — its label is localized
+      // ("Show thinking", "عرض التفكير", …) so text matching is unreliable.
       const markdownBlocks = el.find('.markdown-content').toArray()
       for (const mb of markdownBlocks) {
-        const mbBlocks = extractBlocksFromNodes($(mb).contents().toArray(), $)
-        // Filter out the "Show thinking" trigger block
-        const filteredBlocks = mbBlocks.filter(block => {
-          if (block.kind === 'text' && block.text.includes('Show thinking')) {
-            return block.text.trim() !== 'Show thinking'
-          }
-          return true
-        })
-        blocks.push(...filteredBlocks)
+        const $mb = $(mb)
+        if (
+          $mb.find(
+            '[data-testid="thinking-status"], [data-testid="subagent-cot-list"]',
+          ).length > 0
+        ) {
+          continue
+        }
+        blocks.push(...extractBlocksFromNodes($mb.contents().toArray(), $))
       }
       blocks = compactBlocks(blocks)
     }

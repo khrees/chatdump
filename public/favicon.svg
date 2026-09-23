@@ -6,16 +6,16 @@
 >
   <title id="favicon-title">chatdump favicon</title>
   <desc id="favicon-desc">
-    A warm paper tile containing the chatdump chat-document symbol.
+    A clean paper tile containing the chatdump chat-document symbol.
   </desc>
   <defs>
     <linearGradient id="favicon-tile" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FCF8F1" />
-      <stop offset="1" stop-color="#EEE5D9" />
+      <stop offset="0" stop-color="#FFFFFF" />
+      <stop offset="1" stop-color="#F4F5F7" />
     </linearGradient>
     <linearGradient id="favicon-stream" x1="20" y1="50" x2="45" y2="25" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#BC8442" />
-      <stop offset="1" stop-color="#31433A" />
+      <stop offset="0" stop-color="#4F46E5" />
+      <stop offset="1" stop-color="#818CF8" />
     </linearGradient>
   </defs>
   <rect
@@ -25,21 +25,21 @@
     height="54"
     rx="16"
     fill="url(#favicon-tile)"
-    stroke="#161310"
+    stroke="#1D1D1F"
     stroke-opacity="0.12"
   />
   <g transform="translate(1 1)">
     <path
       d="M22 12h17.5L50 22.5V44a8 8 0 0 1-8 8H27.4L16 57l3.3-10A8 8 0 0 1 14 39.5V20a8 8 0 0 1 8-8Z"
-      fill="#FBF8F3"
-      stroke="#161310"
+      fill="#FFFFFF"
+      stroke="#1D1D1F"
       stroke-linejoin="round"
       stroke-width="2.7"
     />
     <path
       d="M39.5 12v8.1a2.4 2.4 0 0 0 2.4 2.4H50"
       fill="none"
-      stroke="#161310"
+      stroke="#1D1D1F"
       stroke-linecap="round"
       stroke-linejoin="round"
       stroke-width="2.7"
@@ -51,8 +51,8 @@
       stroke-linecap="round"
       stroke-width="4.9"
     />
-    <rect x="29.5" y="26.5" width="12.2" height="2.4" rx="1.2" fill="#BC8442" />
-    <rect x="29.5" y="32.3" width="14.2" height="2.4" rx="1.2" fill="#31433A" />
-    <rect x="29.5" y="38.1" width="11.2" height="2.4" rx="1.2" fill="#31433A" />
+    <rect x="29.5" y="26.5" width="12.2" height="2.4" rx="1.2" fill="#4F46E5" />
+    <rect x="29.5" y="32.3" width="14.2" height="2.4" rx="1.2" fill="#6366F1" />
+    <rect x="29.5" y="38.1" width="11.2" height="2.4" rx="1.2" fill="#818CF8" />
   </g>
 </svg>

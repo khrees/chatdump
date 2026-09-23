@@ -7,6 +7,7 @@ import {
   Scripts,
   createRootRoute,
 } from '@tanstack/react-router'
+import '@fontsource-variable/geist'
 import '../styles.css'
 
 const SITE_TITLE = 'chatdump | Public Share Link to Markdown'

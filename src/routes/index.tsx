@@ -13,12 +13,15 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  SlidersHorizontal,
+  Code,
   Copy,
   Check,
   Download,
   ChevronUp,
   ClipboardList,
+  Eye,
+  MessageSquare,
+  Trash2,
   User,
   Bot,
   Shield,
@@ -26,9 +29,9 @@ import {
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { ChatContinuation } from "../components/ui/chat-continuation";
+import { ShareDropdown } from "../components/ui/share-dropdown";
 import { cn } from "../lib/cn";
 import { splitMarkdownForPreview } from "../lib/markdown-preview";
-import { stripMarkdown } from "../lib/markdown-utils";
 import { deleteShareConversationCacheEntry } from "../lib/share-cache";
 import { renderConversationToMarkdown } from "../lib/render";
 import type { NormalizedConversation } from "../lib/types";
@@ -48,7 +51,7 @@ type Toast = {
 
 type PersistedHomeState = {
   markdown: string;
-  outputMode: "markdown" | "preview" | "plain";
+  outputMode: "markdown" | "preview";
   url: string;
   warnings: string[];
   conversation?: NormalizedConversation;
@@ -146,6 +149,61 @@ function PreviewImage(props: React.ImgHTMLAttributes<HTMLImageElement>) {
         </a>
       ) : null}
     </span>
+  );
+}
+
+function CodeBlock({
+  children,
+  lang,
+  rawCode,
+  ...props
+}: {
+  children: React.ReactNode;
+  lang?: string;
+  rawCode: string;
+} & React.HTMLAttributes<HTMLPreElement>) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<number | undefined>(undefined);
+
+  async function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(rawCode);
+      setCopied(true);
+      window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // fallback
+    }
+  }
+
+  return (
+    <div className="code-block-wrapper group/code">
+      <div className="code-block-lang flex items-center justify-between">
+        <span className="font-mono text-[0.68rem] tracking-wider uppercase text-slate-400 select-none">
+          {lang || "Code"}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? "Code copied to clipboard" : "Copy code"}
+          className="inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-[0.68rem] font-sans font-medium text-slate-400 hover:text-slate-100 hover:bg-white/10 active:scale-[0.97] transition-[transform,background-color,color] duration-150 ease-snappy focus:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              <span className="text-emerald-400 font-medium">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" aria-hidden="true" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre {...props}>{children}</pre>
+    </div>
   );
 }
 
@@ -322,7 +380,7 @@ function readPersistedHomeState(): PersistedHomeState | null {
       return null;
     }
 
-    const outputMode = ["preview", "markdown", "plain"].includes(
+    const outputMode = ["preview", "markdown"].includes(
       parsedState.outputMode,
     )
       ? parsedState.outputMode
@@ -474,9 +532,9 @@ function detectPlatform(urlStr: string) {
         id: "grok",
         name: "Grok",
         color:
-          "border-slate-800/30 dark:border-slate-200/30 text-slate-800 dark:text-slate-200",
+          "border-neutral-900 dark:border-white text-white dark:text-black",
         logo: "Grok",
-        bg: "bg-slate-500/10",
+        bg: "bg-neutral-900 dark:bg-white",
       };
     }
     if (hostname.includes("meta.ai")) {
@@ -499,25 +557,23 @@ function Home() {
   const [markdown, setMarkdown] = useState("");
   const [conversation, setConversation] =
     useState<NormalizedConversation | null>(null);
-  const [includeMetadata, setIncludeMetadata] = useState(true);
-  const [includeSystemMessages, setIncludeSystemMessages] = useState(false);
-  const [removeEmojis, setRemoveEmojis] = useState(false);
-  const [cleanHtml, setCleanHtml] = useState(false);
+  // Good-output defaults, baked in: metadata header on, system messages
+  // excluded, content faithful (no emoji/HTML stripping).
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
-  const [outputMode, setOutputMode] = useState<
-    "markdown" | "preview" | "plain"
-  >("preview");
+  const [outputMode, setOutputMode] = useState<"markdown" | "preview">(
+    "preview",
+  );
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
   );
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hasHydratedState, setHasHydratedState] = useState(false);
   const [recentUrls, setRecentUrls] = useState<string[]>([]);
-  const [searchRecent, setSearchRecent] = useState("");
   const [isWhyModalOpen, setIsWhyModalOpen] = useState(false);
-  const [showAdvancedModal, setShowAdvancedModal] = useState(false);
+  const [continuationOpen, setContinuationOpen] = useState(false);
+  const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const outputSectionRef = useRef<HTMLElement | null>(null);
   const outputBodyRef = useRef<HTMLElement | null>(null);
@@ -534,53 +590,24 @@ function Home() {
   const processedMarkdown = useMemo(() => {
     if (!conversation) return markdown;
 
-    // 1. Generate markdown using options
-    let md = renderConversationToMarkdown(conversation, {
-      includeMetadata,
-      includeSystemMessages,
-    });
-
-    // 2. Clean Emojis if selected
-    if (removeEmojis) {
-      const emojiRegex =
-        /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F191}-\u{1F251}\u{1F004}\u{1F0CF}\u{1F900}-\u{1F9FF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
-      md = md.replace(emojiRegex, "");
-    }
-
-    // 3. Clean custom HTML tags and comments
-    if (cleanHtml) {
-      md = md.replace(/<!--[\s\S]*?-->/g, "");
-      md = md.replace(/<\/?[a-zA-Z]+(?:\s+[a-zA-Z]+="[^"]*")*\s*\/?>/g, "");
-    }
-
-    return md;
-  }, [
-    conversation,
-    markdown,
-    includeMetadata,
-    includeSystemMessages,
-    removeEmojis,
-    cleanHtml,
-  ]);
+    return renderConversationToMarkdown(conversation);
+  }, [conversation, markdown]);
 
   const deferredMarkdown = useDeferredValue(processedMarkdown);
   const hasResult = deferredMarkdown.length > 0;
 
   const isRenderedPreview = outputMode === "preview";
-  const isPlainText = outputMode === "plain";
   const lineCount = hasResult ? deferredMarkdown.split("\n").length : 0;
   const characterCount = hasResult ? deferredMarkdown.length : 0;
   const warningCount = warnings.length;
   const previewSegments = splitMarkdownForPreview(deferredMarkdown);
   const copyLabel =
     copyState === "copied"
-      ? "Copied"
+      ? "Copied!"
       : copyState === "error"
         ? "Copy failed"
-        : ".md";
-  const displayMarkdown = isPlainText
-    ? stripMarkdown(deferredMarkdown)
-    : deferredMarkdown;
+        : "Copy";
+  const displayMarkdown = deferredMarkdown;
   const platform = detectPlatform(url);
 
   function removeToast(id: number) {
@@ -864,10 +891,6 @@ function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const filteredRecentUrls = recentUrls.filter((u) =>
-    u.toLowerCase().includes(searchRecent.toLowerCase()),
-  );
-
   return (
     <main className="app-frame font-sans">
       {toasts.length > 0 ? (
@@ -989,9 +1012,9 @@ function Home() {
             <button
               type="button"
               onClick={() => setIsWhyModalOpen(true)}
-              className="rounded-md border border-line bg-paper px-4 py-1.5 text-[0.75rem] font-bold uppercase tracking-wider text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+              className="rounded-md border border-line bg-paper px-3.5 py-1.5 font-sans text-xs font-medium text-ink-soft hover:bg-paper-raised hover:text-ink hover:border-line-strong active:scale-[0.97] transition-[transform,background-color,border-color,color] duration-150 ease-snappy"
             >
-              Why use chatdump
+              Why use chatdump?
             </button>
           )}
         </header>
@@ -1018,22 +1041,23 @@ function Home() {
 
                   <form onSubmit={handleSubmit} className="grid gap-3.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs uppercase tracking-wider text-ink-soft">
+                      <span className="font-sans text-xs font-medium text-ink-soft">
                         Enter public share link
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline-block text-[0.65rem] font-mono px-1.5 py-0.5 rounded border border-line bg-paper text-ink-soft">
-                          Press ⌘K to focus
+                        <span className="hidden sm:inline-flex items-center gap-1.5 text-[0.72rem] text-ink-soft select-none">
+                          Press <kbd className="font-mono text-[0.65rem] px-1.5 py-0.5 rounded border border-line bg-paper text-ink font-semibold shadow-2xs">⌘K</kbd> to focus
                         </span>
                         {platform && (
                           <span
                             className={cn(
-                              "text-[0.65rem] font-mono font-bold uppercase px-1.5 py-0.5 rounded",
+                              "text-[0.68rem] font-mono font-bold uppercase px-2 py-0.5 rounded-md border animate-fade-in inline-flex items-center gap-1.5",
                               platform.bg,
                               platform.color,
                             )}
                           >
-                            {platform.name} Link Detected
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                            {platform.name}
                           </span>
                         )}
                       </div>
@@ -1078,17 +1102,26 @@ function Home() {
                 <section className="panel-shell p-6 flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
                   <div>
                     <div className="flex items-center justify-between mb-4 pb-2 border-b border-line">
-                      <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-ink">
+                      <h2 className="text-xs font-sans font-semibold text-ink">
                         Recent History
                       </h2>
                       {recentUrls.length > 0 && (
-                        <input
-                          type="text"
-                          placeholder="Search..."
-                          value={searchRecent}
-                          onChange={(e) => setSearchRecent(e.target.value)}
-                          className="w-24 px-1.5 py-0.5 text-[0.7rem] border border-line rounded bg-paper-inset text-ink outline-none"
-                        />
+                        <button
+                          type="button"
+                          aria-label="Clear recent history"
+                          title="Clear recent history"
+                          onClick={() => {
+                            if (
+                              window.confirm("Clear all recent conversions?")
+                            ) {
+                              window.localStorage.removeItem(RECENT_URLS_KEY);
+                              setRecentUrls([]);
+                            }
+                          }}
+                          className="grid h-6 w-6 place-items-center rounded-md text-ink-soft transition-colors hover:bg-paper-raised hover:text-ink"
+                        >
+                          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
 
@@ -1101,13 +1134,9 @@ function Home() {
                           No conversions yet.
                         </p>
                       </div>
-                    ) : filteredRecentUrls.length === 0 ? (
-                      <p className="text-xs text-ink-soft py-4">
-                        No matching URLs found.
-                      </p>
                     ) : (
-                      <div className="grid gap-2.5 max-h-[16rem] overflow-y-auto pr-1">
-                        {filteredRecentUrls.map((recentUrl) => {
+                      <div className="grid gap-2.5 max-h-[16rem] overflow-y-auto overflow-x-hidden pr-1">
+                        {recentUrls.map((recentUrl) => {
                           const recentPlatform = detectPlatform(recentUrl) || {
                             name: "AI Link",
                             color: "text-slate-400 border-slate-400/20",
@@ -1117,7 +1146,7 @@ function Home() {
                             <div
                               key={recentUrl}
                               onClick={() => handleSelectRecentUrl(recentUrl)}
-                              className="group relative flex flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-[background-color,border-color] hover:border-accent/30"
+                              className="group relative flex min-w-0 flex-col gap-1 p-2.5 rounded-md border border-line bg-paper/50 hover:bg-paper-raised cursor-pointer transition-[background-color,border-color] hover:border-accent/30"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span
@@ -1140,7 +1169,7 @@ function Home() {
                                   ×
                                 </button>
                               </div>
-                              <span className="font-mono text-[0.68rem] text-ink-muted truncate">
+                              <span className="block w-full font-mono text-[0.68rem] text-ink-muted truncate">
                                 {recentUrl}
                               </span>
                             </div>
@@ -1149,40 +1178,26 @@ function Home() {
                       </div>
                     )}
                   </div>
-
-                  <div className="pt-4 border-t border-line mt-4 flex items-center justify-between text-[0.72rem] text-ink-soft">
-                    <span>Clean Markdown</span>
-                    <span>No data stored on server</span>
-                  </div>
                 </section>
               </div>
 
               {/* Three Bento Feature Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
-                    <svg
-                      aria-hidden="true"
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"
-                        className="fill-none stroke-current stroke-[1.8] stroke-linecap-round stroke-linejoin-round"
-                      />
-                    </svg>
+                <div className="p-5 rounded-xl border border-line bg-paper-elevated shadow-sm hover:shadow-soft hover:-translate-y-0.5 hover:border-line-strong transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                    <Download className="h-5 w-5" aria-hidden="true" />
                   </div>
-                  <h3 className="font-bold text-ink mb-1">
+                  <h3 className="font-semibold text-ink mb-1 text-[0.95rem]">
                     Visual & MD Export
                   </h3>
                   <p className="text-[0.82rem] leading-relaxed text-ink-muted">
-                    Export complete chat logs into clean, readable Markdown,
-                    plain text, or rich responsive preview.
+                    Export complete chat logs into clean, readable Markdown
+                    with a rich responsive preview.
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
+                <div className="p-5 rounded-xl border border-line bg-paper-elevated shadow-sm hover:shadow-soft hover:-translate-y-0.5 hover:border-line-strong transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
                       className="h-5 w-5"
@@ -1194,7 +1209,9 @@ function Home() {
                       />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-ink mb-1">Continue Context</h3>
+                  <h3 className="font-semibold text-ink mb-1 text-[0.95rem]">
+                    Continue Context
+                  </h3>
                   <p className="text-[0.82rem] leading-relaxed text-ink-muted">
                     Seamlessly transition to a different model (ChatGPT, Claude,
                     Gemini, Copilot, Grok, Meta AI) with one-click share
@@ -1202,8 +1219,8 @@ function Home() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-lg border border-line bg-paper-elevated shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-200 ease-snappy hover:border-accent/20">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded bg-accent/10 text-accent">
+                <div className="p-5 rounded-xl border border-line bg-paper-elevated shadow-sm hover:shadow-soft hover:-translate-y-0.5 hover:border-line-strong transition-[transform,box-shadow,border-color] duration-200 ease-snappy">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <svg
                       aria-hidden="true"
                       className="h-5 w-5"
@@ -1215,7 +1232,9 @@ function Home() {
                       />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-ink mb-1">Multi-Platform</h3>
+                  <h3 className="font-semibold text-ink mb-1 text-[0.95rem]">
+                    Multi-Platform
+                  </h3>
                   <p className="text-[0.82rem] leading-relaxed text-ink-muted">
                     Universal compatibility: fully supports standard export
                     patterns of all major AI web products.
@@ -1241,108 +1260,116 @@ function Home() {
               <div className="grid grid-cols-1 gap-6 items-start">
                 {/* Left Column: Exported Chat Content (Occupies 8/12 or 9/12 cols) */}
                 <section
-                  className="panel-shell flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-8rem)] p-4 gap-4 scroll-mt-20"
+                  className="panel-shell flex flex-col min-h-[480px] max-h-[calc(100vh-12rem)] p-4 gap-4 scroll-mt-20"
                   ref={outputSectionRef}
                 >
                   {/* Sticky floating toolbar */}
                   <div className="sticky top-0 z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-paper-elevated/85 backdrop-blur-md border border-line p-3 rounded-lg shadow-sm">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <button
                         onClick={handleEditUrl}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
-                        aria-label="Edit URL"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-sans text-xs font-medium text-ink-soft hover:bg-paper-raised hover:text-ink hover:border-line-strong active:scale-[0.97] transition-[transform,background-color,border-color,color] duration-150 ease-snappy"
+                        aria-label="Back to converter"
                       >
                         <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
                         Back
                       </button>
 
-                      <span className="text-[0.65rem] font-mono px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20">
-                        {lineCount} L • {characterCount} C
+                      <span className="text-[0.68rem] font-mono px-2 py-0.5 rounded-md bg-paper-inset text-ink-soft border border-line select-none">
+                        {lineCount} L • {characterCount.toLocaleString()} C
                       </span>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex border border-line bg-paper-inset p-0.5 rounded-lg">
-                      {(["preview", "markdown", "plain"] as const).map(
-                        (tabId) => (
-                          <button
-                            key={tabId}
-                            type="button"
-                            onClick={() => setOutputMode(tabId)}
-                            className={cn(
-                              "px-2.5 py-1 text-[0.68rem] font-mono font-semibold uppercase tracking-wider rounded-md transition-colors",
-                              outputMode === tabId
-                                ? "bg-paper-elevated text-ink shadow-sm border border-line-strong"
-                                : "text-ink-soft hover:text-ink",
-                            )}
-                          >
-                            {tabId === "preview"
-                              ? "Preview"
-                              : tabId === "markdown"
-                                ? "Markdown"
-                                : "Plain"}
-                          </button>
-                        ),
+                    {/* View toggle: rendered preview ↔ markdown source */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOutputMode(isRenderedPreview ? "markdown" : "preview")
+                      }
+                      aria-label={
+                        isRenderedPreview
+                          ? "Show markdown source"
+                          : "Show rendered preview"
+                      }
+                      title={
+                        isRenderedPreview
+                          ? "Show markdown source"
+                          : "Show rendered preview"
+                      }
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-sans text-xs font-medium text-ink-soft hover:bg-paper-raised hover:text-ink hover:border-line-strong active:scale-[0.97] transition-[transform,background-color,border-color,color] duration-150 ease-snappy"
+                    >
+                      {isRenderedPreview ? (
+                        <Code aria-hidden="true" className="h-3.5 w-3.5" />
+                      ) : (
+                        <Eye aria-hidden="true" className="h-3.5 w-3.5" />
                       )}
-                    </div>
+                      {isRenderedPreview ? "Source" : "Preview"}
+                    </button>
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                      {/* Advanced Options trigger */}
+                      <ShareDropdown
+                        markdown={deferredMarkdown}
+                        isOpen={isShareDropdownOpen}
+                        onOpenChange={setIsShareDropdownOpen}
+                        onOpenProvider={(url) => window.open(url, "_blank")}
+                      />
                       <button
                         type="button"
-                        aria-label="Advanced Options"
-                        onClick={() => setShowAdvancedModal(true)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-paper px-2.5 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
+                        aria-label="Continue chat"
+                        title="Continue chat"
+                        aria-pressed={continuationOpen}
+                        onClick={() => setContinuationOpen((v) => !v)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-paper text-ink-soft hover:bg-paper-raised hover:text-ink hover:border-line-strong active:scale-[0.97] transition-[transform,background-color,border-color,color] duration-150 ease-snappy"
                       >
-                        <SlidersHorizontal
+                        <MessageSquare
                           aria-hidden="true"
                           className="h-3.5 w-3.5"
                         />
-                        Options
                       </button>
 
                       <Button
+                        variant="primary"
                         aria-label={copyLabel}
-                        className="min-h-8 h-8 px-3 rounded-md gap-1.5"
+                        className="min-h-8 h-8 px-3 rounded-md gap-1.5 font-medium text-xs shadow-sm"
                         onClick={handleCopy}
                       >
                         {copyState === "copied" ? (
                           <Check
                             aria-hidden="true"
-                            className="h-[0.95rem] w-[0.95rem] text-accent"
+                            className="h-3.5 w-3.5 text-white animate-fade-in"
                           />
                         ) : (
                           <Copy
                             aria-hidden="true"
-                            className="h-[0.95rem] w-[0.95rem]"
+                            className="h-3.5 w-3.5 text-white/90"
                           />
                         )}
-                        <span className="text-xs">{copyLabel}</span>
+                        <span>{copyLabel}</span>
                       </Button>
 
                       <Button
-                        aria-label="Download
-                        "
-                        className="min-h-8 h-8 px-3 rounded-md gap-1.5"
+                        variant="secondary-outline"
+                        aria-label="Download Markdown file"
+                        className="min-h-8 h-8 px-3 rounded-md gap-1.5 font-medium text-xs"
                         onClick={handleDownload}
                       >
                         <Download
                           aria-hidden="true"
-                          className="h-[0.95rem] w-[0.95rem]"
+                          className="h-3.5 w-3.5 text-ink-soft group-hover/button:text-ink"
                         />
-                        <span className="text-xs">.md</span>
+                        <span>Download .md</span>
                       </Button>
                     </div>
                   </div>
 
                   {/* View Panes */}
-                  <div className="flex-1 min-h-0 overflow-hidden relative">
-                    <div className="h-full">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden relative">
+                    <div className="flex min-h-0 flex-1 flex-col">
                       {/* Left Pane (Preview) — chat message cards */}
                       {outputMode === "preview" && (
                         <article
-                          className="output-surface h-full overflow-auto leading-[1.68] text-ink"
+                          className="output-surface min-h-0 flex-1 overflow-auto leading-[1.68] text-ink"
                           ref={(node) => {
                             outputBodyRef.current = node;
                           }}
@@ -1407,14 +1434,9 @@ function Home() {
                                   }
                                 }
                                 return (
-                                  <div className="code-block-wrapper">
-                                    {lang ? (
-                                      <span className="code-block-lang">
-                                        {lang}
-                                      </span>
-                                    ) : null}
-                                    <pre {...props}>{children}</pre>
-                                  </div>
+                                  <CodeBlock lang={lang} rawCode={textContent} {...props}>
+                                    {children}
+                                  </CodeBlock>
                                 );
                               },
                               hr: ({ node: _node, ...props }) => (
@@ -1594,11 +1616,10 @@ function Home() {
                         </article>
                       )}
 
-                      {/* Right Pane (Markdown / Plain) */}
-                      {(outputMode === "markdown" ||
-                        outputMode === "plain") && (
+                      {/* Right Pane (Markdown source) */}
+                      {outputMode === "markdown" && (
                         <pre
-                          className="output-surface m-0 h-full overflow-auto whitespace-pre-wrap font-mono text-[0.88rem] leading-[1.65] text-ink"
+                          className="output-surface m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap font-mono text-[0.88rem] leading-[1.65] text-ink"
                           ref={(node) => {
                             outputBodyRef.current = node;
                           }}
@@ -1608,155 +1629,22 @@ function Home() {
                         </pre>
                       )}
                     </div>
-
-                    {/* Animated copy success celebration overlay */}
-                    {copyState === "copied" && (
-                      <div className="absolute inset-0 bg-accent/5 flex items-center justify-center pointer-events-none z-30 animate-fade-in">
-                        <div className="bg-paper border border-accent text-accent text-xs font-mono font-bold px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
-                          <Check aria-hidden="true" className="h-4 w-4" />
-                          SUCCESSFULLY COPIED TO CLIPBOARD! 🎉
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </section>
               </div>
 
-              {/* Bottom: Continue Chat (collapsible as before) */}
-              <ChatContinuation markdown={deferredMarkdown} />
+              {/* Bottom: Continue Chat (icon trigger lives in the toolbar) */}
+              <ChatContinuation
+                markdown={deferredMarkdown}
+                trigger="none"
+                expanded={continuationOpen}
+                onExpandedChange={setContinuationOpen}
+              />
             </div>
           ) : null}
         </div>
       </div>
 
-      {/* ── Advanced Options Modal ── */}
-      {showAdvancedModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Advanced Options"
-        >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowAdvancedModal(false)}
-          />
-
-          {/* Panel */}
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-border-contrast bg-paper-solid-elevated shadow-2xl overflow-hidden animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center justify-between gap-3 border-b border-border-contrast px-6 py-4 bg-paper-solid">
-              <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
-                </span>
-                <span className="text-[0.9rem] font-extrabold text-ink uppercase tracking-wide">
-                  Advanced Options
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-label="Close Advanced Options"
-                onClick={() => setShowAdvancedModal(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
-              >
-                <X aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Options */}
-            <div className="p-6 flex flex-col gap-5">
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  id="opt-metadata"
-                  checked={includeMetadata}
-                  onChange={(e) => setIncludeMetadata(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
-                    Include Metadata Header
-                  </span>
-                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
-                    Add the source URL, export date, and chat creator to the top
-                    of the file.
-                  </span>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  id="opt-system"
-                  checked={includeSystemMessages}
-                  onChange={(e) => setIncludeSystemMessages(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
-                    Include System Prompts
-                  </span>
-                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
-                    Export any internal developer instructions or system roles
-                    from the session.
-                  </span>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  id="opt-emojis"
-                  checked={removeEmojis}
-                  onChange={(e) => setRemoveEmojis(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
-                    Clean Emojis
-                  </span>
-                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
-                    Strip all graphical emojis from the output text for a
-                    cleaner documentation format.
-                  </span>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  id="opt-html"
-                  checked={cleanHtml}
-                  onChange={(e) => setCleanHtml(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border-contrast text-accent focus:ring-accent/20 cursor-pointer"
-                />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[0.82rem] font-bold text-ink group-hover:text-accent transition-colors">
-                    Strip HTML Tags
-                  </span>
-                  <span className="text-[0.72rem] text-ink-soft leading-relaxed">
-                    Remove raw HTML tags and comments to leave only pure
-                    Markdown syntax.
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-2 border-t border-border-contrast px-6 py-4 bg-paper-solid">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedModal(false)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-paper px-4 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft hover:bg-paper-raised hover:text-ink transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { shareProviders, type ShareProvider } from '../../lib/providers'
 import { cn } from '../../lib/cn'
 
@@ -204,14 +205,15 @@ export function ShareDropdown({
         </svg>
       </button>
 
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs"
-          onClick={() => onOpenChange(false)}
-        >
+      {isOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-xs"
+            onClick={() => onOpenChange(false)}
+          >
           <div
             ref={dropdownRef}
-            className="w-full max-w-xl rounded-xl border border-border-contrast bg-paper-solid p-6 shadow-2xl max-h-[90vh] overflow-y-auto animate-slide-up relative"
+            className="w-full max-w-xl my-auto rounded-xl border border-border-contrast bg-paper-solid p-6 shadow-2xl animate-slide-up relative"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -316,8 +318,11 @@ export function ShareDropdown({
                   brandColorClass = 'hover:border-cyan-500/50 border-border-contrast bg-paper-solid-elevated'
                   brandBadge = 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-500/30'
                 } else if (provider.id === 'grok') {
-                  brandColorClass = 'hover:border-slate-800/50 dark:hover:border-slate-200/50 border-border-contrast bg-paper-solid-elevated'
-                  brandBadge = 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30'
+                  brandColorClass = 'hover:border-neutral-900/50 dark:hover:border-white/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-neutral-900 text-white dark:bg-white dark:text-black border-neutral-900 dark:border-white'
+                } else if (provider.id === 'meta') {
+                  brandColorClass = 'hover:border-blue-500/50 border-border-contrast bg-paper-solid-elevated'
+                  brandBadge = 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30'
                 }
 
                 return (
@@ -377,8 +382,9 @@ export function ShareDropdown({
               })}
             </div>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }

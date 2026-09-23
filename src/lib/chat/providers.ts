@@ -35,6 +35,7 @@ export const WEB_APPS: WebAppOption[] = [
   { id: 'gemini-web', name: 'Gemini Web App', url: 'https://gemini.google.com/' },
   { id: 'grok-web', name: 'Grok Web App', url: 'https://grok.com/' },
   { id: 'copilot-web', name: 'Copilot Web App', url: 'https://copilot.microsoft.com/' },
+  { id: 'meta-web', name: 'Meta AI Web App', url: 'https://www.meta.ai/' },
 ]
 
 export const PROVIDER_LABELS: Record<ChatProvider, string> = {

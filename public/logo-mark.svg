@@ -10,21 +10,21 @@
   </desc>
   <defs>
     <linearGradient id="chatdump-stream" x1="19" y1="48" x2="46" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#BC8442" />
-      <stop offset="1" stop-color="#31433A" />
+      <stop offset="0" stop-color="#4F46E5" />
+      <stop offset="1" stop-color="#818CF8" />
     </linearGradient>
   </defs>
   <path
     d="M22 12h17.5L50 22.5V44a8 8 0 0 1-8 8H27.4L16 57l3.3-10A8 8 0 0 1 14 39.5V20a8 8 0 0 1 8-8Z"
-    fill="#FBF8F3"
-    stroke="#161310"
+    fill="#FFFFFF"
+    stroke="#1D1D1F"
     stroke-linejoin="round"
     stroke-width="2.75"
   />
   <path
     d="M39.5 12v8.1a2.4 2.4 0 0 0 2.4 2.4H50"
     fill="none"
-    stroke="#161310"
+    stroke="#1D1D1F"
     stroke-linecap="round"
     stroke-linejoin="round"
     stroke-width="2.75"
@@ -36,7 +36,7 @@
     stroke-linecap="round"
     stroke-width="5.1"
   />
-  <rect x="29.5" y="26.5" width="12.5" height="2.5" rx="1.25" fill="#BC8442" />
-  <rect x="29.5" y="32.5" width="14.5" height="2.5" rx="1.25" fill="#31433A" />
-  <rect x="29.5" y="38.5" width="11.5" height="2.5" rx="1.25" fill="#31433A" />
+  <rect x="29.5" y="26.5" width="12.5" height="2.5" rx="1.25" fill="#4F46E5" />
+  <rect x="29.5" y="32.5" width="14.5" height="2.5" rx="1.25" fill="#6366F1" />
+  <rect x="29.5" y="38.5" width="11.5" height="2.5" rx="1.25" fill="#818CF8" />
 </svg>
